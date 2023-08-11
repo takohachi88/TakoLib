@@ -1,0 +1,15 @@
+{
+  "name": "tako.common",
+  "displayName": "TakoCommon",
+  "version": "0.0.1",
+  "unity": "2021.3",
+  "changelogUrl": "https://github.com/takohachi88/TakoCommon/releases",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/takohachi88/TakoCommon.git"
+  },
+  "author": "takohachi",
+  "keywords": [
+    "Common"
+  ]
+}
