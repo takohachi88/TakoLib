@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace Tako.Common.Extensions
+namespace TakoLibrary.Common.Extensions
 {
     public static class RendererExtensions
     {

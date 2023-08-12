@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace Tako.Common.Extensions
+namespace TakoLibrary.Common.Extensions
 {
     public static class TransformExtensions
     {
