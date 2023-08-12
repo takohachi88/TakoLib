@@ -1,6 +1,6 @@
 {
-  "name": "takolibrary.common",
-  "displayName": "TakoLibrary-Common",
+  "name": "takolibrary.urp",
+  "displayName": "TakoLibrary-URP",
   "version": "0.0.1",
   "unity": "2021.3",
   "changelogUrl": "https://github.com/takohachi88/TakoLibrary/releases",
@@ -10,6 +10,6 @@
   },
   "author": "takohachi",
   "keywords": [
-    "Common"
+    "URP"
   ]
 }

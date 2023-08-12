@@ -1,12 +1,9 @@
-using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
 using TakoLibrary.Common.Editor;
 using UnityEditor;
 
 public class CreateMenuCommonExtensions : CreateMenuExtensions<CreateMenuCommonExtensions>
 {
-    [MenuItem(MenuItemRoot+"C# Script (MonoBehaviour Basic)", false, 80)]
+    [MenuItem(MenuItemRoot + "C# Script (MonoBehaviour Basic)", false, 80)]
     private static void CreateMonoBehaviourBasic() => CreateFile(FileType.Cs, "MonoBehaviourBasic", "new Custom MonoBehaviour Basic");
 
     [MenuItem(MenuItemRoot + "C# Script (MonoBehaviour Advanced)", false, 80)]
