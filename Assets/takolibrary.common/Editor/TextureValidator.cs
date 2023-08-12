@@ -40,6 +40,7 @@ namespace TakoLibrary.Editor
 
             _filteredTextures = AssetDatabase.FindAssets("t: texture", new[] { "Assets" })
                 .Select(x => AssetDatabase.LoadAssetAtPath<Texture2D>(AssetDatabase.GUIDToAssetPath(x)))
+                .Where(x => x)
                 .Where(x => !AssetDatabase.GetAssetPath(x).Contains(_filter))//検索フィルター。
                 .Where(x => x.width % 4 != 0 || x.height % 4 != 0)//サイズが4の番数でないもの。
                 .ToArray();
