@@ -1,0 +1,81 @@
+using UnityEngine;
+
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
+namespace Tako
+{
+    public class #SCRIPTNAME# : MonoBehaviour
+    {
+        [SerializeField] private Vector2 _minMaxValue = new Vector2(0.2f, 0.6f);
+
+        private void Awake() { }
+        private void OnEnable() { }
+        private void OnDisable() { }
+        private void OnDestroy() { }
+        private void OnValidate() { }
+        
+        private void Start() => Initialize();
+        private void Update() => ManualUpdate(Time.deltaTime);
+
+        public void Initialize()
+        {
+            Debug.Log("Initialize");
+        }
+
+        public void ManualUpdate(float deltaTime)
+        {
+            Debug.Log($"ManualUpdate, deltaTime: {deltaTime}");
+        }
+
+#if UNITY_EDITOR
+
+        [CustomEditor(typeof(#SCRIPTNAME#))]
+        public class #SCRIPTNAME#Editor : Editor
+        {
+            private int _tabIndex = 0;
+            private #SCRIPTNAME# _target;
+
+            public override void OnInspectorGUI()
+            {
+                _target = (#SCRIPTNAME#)target;
+
+                _tabIndex = GUILayout.Toolbar(_tabIndex, new[] { "Custom", "Origin" });
+
+                EditorGUILayout.Space();
+
+                using (new EditorGUILayout.VerticalScope(GUI.skin.box))
+                {
+                    switch (_tabIndex)
+                    {
+                        case 0: DrawCustomGUI(); break;
+                        case 1: base.OnInspectorGUI(); break;
+                        default: DrawCustomGUI(); break;
+                    }
+                }
+            }
+
+            private void DrawCustomGUI()
+            {
+                serializedObject.Update();
+
+                EditorGUILayout.LabelField("Methods", EditorStyles.boldLabel);
+
+                if (GUILayout.Button(nameof(_target.Initialize), GUILayout.Width(200))) _target.Initialize();
+                if (GUILayout.Button(nameof(_target.ManualUpdate), GUILayout.Width(200))) _target.ManualUpdate(Time.deltaTime);
+
+                EditorGUILayout.Space();
+
+                EditorGUILayout.LabelField("Serialized Properties", EditorStyles.boldLabel);
+
+                EditorGUILayout.MinMaxSlider(ref _target._minMaxValue.x, ref _target._minMaxValue.y, 0, 1);
+
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._minMaxValue)));
+
+                serializedObject.ApplyModifiedProperties();
+            }
+        }
+#endif
+    }
+}

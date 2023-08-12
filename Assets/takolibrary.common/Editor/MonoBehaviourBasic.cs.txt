@@ -1,0 +1,20 @@
+using UnityEngine;
+
+namespace Tako
+{
+    public class #SCRIPTNAME# : MonoBehaviour
+    {
+        private void Start() => Initialize();
+        private void Update() => ManualUpdate(Time.deltaTime);
+
+        public void Initialize()
+        {
+
+        }
+
+        public void ManualUpdate(float deltaTime)
+        {
+
+        }
+    }
+}
