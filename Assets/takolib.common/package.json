@@ -1,0 +1,15 @@
+{
+  "name": "takolib.common",
+  "displayName": "TakoLib-Common",
+  "version": "0.0.1",
+  "unity": "2021.3",
+  "changelogUrl": "https://github.com/takohachi88/TakoLib/releases",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/takohachi88/TakoLib.git"
+  },
+  "author": "takohachi",
+  "keywords": [
+    "Common"
+  ]
+}
