@@ -3,7 +3,7 @@
 using UnityEditor;
 using UnityEngine;
 
-namespace TakoLibrary.Editor
+namespace TakoLib.Editor
 {
     public class EditorCommonDefine
     {

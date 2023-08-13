@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace TakoLibrary.Common.Extensions
+namespace TakoLib.Common.Extensions
 {
     public static class CollectionExtensions
     {

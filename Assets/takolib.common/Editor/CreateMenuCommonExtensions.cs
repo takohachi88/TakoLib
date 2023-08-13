@@ -1,4 +1,4 @@
-using TakoLibrary.Common.Editor;
+using TakoLib.Common.Editor;
 using UnityEditor;
 
 public class CreateMenuCommonExtensions : CreateMenuExtensions<CreateMenuCommonExtensions>

@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace TakoLibrary.Common.Extensions
+namespace TakoLib.Common.Extensions
 {
     public static class StringExtensions
     {

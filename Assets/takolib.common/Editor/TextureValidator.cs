@@ -3,9 +3,9 @@
 using UnityEditor;
 using UnityEngine;
 using System.Linq;
-using TakoLibrary.Common.Extensions;
+using TakoLib.Common.Extensions;
 
-namespace TakoLibrary.Editor
+namespace TakoLib.Editor
 {
 
     public class TextureValidator : EditorWindow

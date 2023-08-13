@@ -1,6 +1,6 @@
 using System;
 
-namespace TakoLibrary.Common.Extensions
+namespace TakoLib.Common.Extensions
 {
     public static class Extensions
     {

@@ -3,7 +3,7 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 
-namespace TakoLibrary.Common.Editor
+namespace TakoLib.Common.Editor
 {
     /// <summary>
     /// Createメニューに項目を追加する。
