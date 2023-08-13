@@ -4,7 +4,7 @@
   "version": "0.0.1",
   "unity": "2021.3",
   "dependencies": {
-    "takolib.common": "https://github.com/takohachi88/TakoLib.git?path=Assets/takolib.common"
+    "takolib.common": "https://github.com/takohachi88/TakoLib.git?path=Assets/takolib.common#0.0.1"
   },
   "changelogUrl": "https://github.com/takohachi88/TakoLib/releases",
   "author": "takohachi",
