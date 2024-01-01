@@ -22,5 +22,11 @@ namespace TakoLib.Urp
         /// </summary>
         [MenuItem(MenuItemShaderRoot + "URP VFX Shader")]
         private static void CreateUrpVfxShader() => CreateFile(FileType.Shader, "UrpVfx", "new URP Unlit Vfx");
+
+        /// <summary>
+        /// URPのPostProcess用シェーダーを作成する。
+        /// </summary>
+        [MenuItem(MenuItemShaderRoot + "URP Post Process Shader")]
+        private static void CreateUrpPostProcessShader() => CreateFile(FileType.Shader, "UrpPostProcess", "new URP Post Process");
     }
 }

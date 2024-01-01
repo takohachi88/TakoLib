@@ -1,5 +1,19 @@
 {
   "dependencies": {
+    "com.cysharp.unitask": {
+      "version": "https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "cfe509a55602ba5be6df7fa0468b10298b8a053d"
+    },
+    "com.neuecc.unirx": {
+      "version": "https://github.com/neuecc/UniRx.git?path=Assets/Plugins/UniRx/Scripts",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "284d5c50d3f1ddd9fa7df3d382ea904732a9c2ff"
+    },
     "com.unity.burst": {
       "version": "1.8.4",
       "depth": 1,
@@ -12,6 +26,13 @@
     "com.unity.collab-proxy": {
       "version": "2.0.4",
       "depth": 0,
+      "source": "registry",
+      "dependencies": {},
+      "url": "https://packages.unity.com"
+    },
+    "com.unity.editorcoroutines": {
+      "version": "1.0.0",
+      "depth": 1,
       "source": "registry",
       "dependencies": {},
       "url": "https://packages.unity.com"
@@ -53,6 +74,15 @@
       "depth": 1,
       "source": "registry",
       "dependencies": {},
+      "url": "https://packages.unity.com"
+    },
+    "com.unity.memoryprofiler": {
+      "version": "1.1.0",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.editorcoroutines": "1.0.0"
+      },
       "url": "https://packages.unity.com"
     },
     "com.unity.render-pipelines.core": {
@@ -143,6 +173,23 @@
         "com.unity.modules.jsonserialize": "1.0.0"
       },
       "url": "https://packages.unity.com"
+    },
+    "takolib.common": {
+      "version": "https://github.com/takohachi88/TakoLib.git?path=Assets/takolib.common",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {},
+      "hash": "117a1dd4c19140a330b3ccbd6e3cc93d6630d769"
+    },
+    "takolib.urp": {
+      "version": "https://github.com/takohachi88/TakoLib.git?path=Assets/takolib.urp",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {
+        "com.unity.render-pipelines.universal": "13.0.0",
+        "takolib.common": "https://github.com/takohachi88/TakoLib.git?path=Assets/takolib.common"
+      },
+      "hash": "117a1dd4c19140a330b3ccbd6e3cc93d6630d769"
     },
     "com.unity.modules.ai": {
       "version": "1.0.0",

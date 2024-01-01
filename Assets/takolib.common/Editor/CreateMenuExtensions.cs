@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.IO;
 using UnityEditor;
 using UnityEngine;
 
@@ -44,18 +43,7 @@ namespace TakoLib.Common.Editor
         /// このC#スクリプトファイルがあるディレクトリを取得する。
         /// </summary>
         /// <returns>このC#スクリプトファイルのディレクトリ</returns>
-        private static string GetFilePath()
-        {
-            //C#ではC#ファイルのパスを取得する方法は無い。
-            //そこでやや強引だがUnityのScriptableObjectの機能を利用して取得する。
-            ScriptableObject instance = ScriptableObject.CreateInstance(typeof(T));
-            MonoScript monoScript = MonoScript.FromScriptableObject(instance);
-            string scriptPath = AssetDatabase.GetAssetPath(monoScript);
-
-            DestroyImmediate(instance);
-
-            return Path.GetDirectoryName(scriptPath);
-        }
+        private static string GetFilePath() => TakoLibEditor.GetScriptFilePath<T>();
 
 
         /// <summary>

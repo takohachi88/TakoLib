@@ -5,7 +5,7 @@ using UnityEngine;
 using System.Linq;
 using TakoLib.Common.Extensions;
 
-namespace TakoLib.Editor
+namespace TakoLib.Common.Editor
 {
 
     public class TextureValidator : EditorWindow
@@ -102,7 +102,7 @@ namespace TakoLib.Editor
                     string widthText = texture.width % 4 == 0 ? texture.width.ToString() : texture.width.ToString().TagColor(Color.red).TagBold();
                     string heightText = texture.height % 4 == 0 ? texture.height.ToString() : texture.height.ToString().TagColor(Color.red).TagBold();
 
-                    EditorGUI.LabelField(sizeRect, $"( {widthText}, {heightText} )", EditorCommonDefine.StyleRichTextLabel);
+                    EditorGUI.LabelField(sizeRect, $"( {widthText}, {heightText} )", TakoLibEditor.StyleRichTextLabel);
                     if (GUI.Button(textureRect, $"{AssetDatabase.GetAssetPath(texture)}", EditorStyles.label))
                     {
                         Selection.activeObject = texture;
