@@ -36,7 +36,7 @@ namespace TakoLib.Urp.PostProcess
         private RTHandle _tempTarget2;
         private RTHandle _destination;
 
-        private SmartDofPass _smartDofPass;
+        private BokehDofPass _smartDofPass;
         private RadialBlurPass _radialBlurPass;
         private AdvancedVignettePass _advancedVignettePass;
 
@@ -44,7 +44,7 @@ namespace TakoLib.Urp.PostProcess
 
         private CustomPostProcessData _data;
 
-        private static ProfilingSampler _smartDofSampler = new ProfilingSampler(nameof(SmartDof));
+        private static ProfilingSampler _smartDofSampler = new ProfilingSampler(nameof(BokehDof));
         private static ProfilingSampler _radialBlurSampler = new ProfilingSampler(nameof(RadialBlur));
         private static ProfilingSampler _advancedVignetteSampler = new ProfilingSampler(nameof(AdvancedVignette));
 
@@ -56,7 +56,7 @@ namespace TakoLib.Urp.PostProcess
             _data = data;
             _materialLibrary = new MaterialLibrary(_data.resources);
 
-            _smartDofPass = new SmartDofPass(_data, _materialLibrary.smartDof);
+            _smartDofPass = new BokehDofPass(_data, _materialLibrary.smartDof);
             _radialBlurPass = new RadialBlurPass(_data, _materialLibrary.radialBlur);
             _advancedVignettePass = new AdvancedVignettePass(_data, _materialLibrary.advancedVignette);
         }
@@ -88,7 +88,7 @@ namespace TakoLib.Urp.PostProcess
             }
 
             VolumeStack stack = VolumeManager.instance.stack;
-            SmartDof smartDof = stack.GetComponent<SmartDof>();
+            BokehDof smartDof = stack.GetComponent<BokehDof>();
             RadialBlur radialBlur = stack.GetComponent<RadialBlur>();
             AdvancedVignette advancedVignette = stack.GetComponent<AdvancedVignette>();
 
@@ -96,7 +96,7 @@ namespace TakoLib.Urp.PostProcess
             {
                 using (new ProfilingScope(cmd, _smartDofSampler))
                 {
-                    PostProcessParams<SmartDof> parameters = new()
+                    PostProcessParams<BokehDof> parameters = new()
                     {
                         cmd = cmd,
                         volumeComponent = smartDof,
@@ -163,7 +163,7 @@ namespace TakoLib.Urp.PostProcess
             destinationIsCameraColor = !destinationIsCameraColor;
         }
 
-        private void DoAdvancedVignette(SmartDof smartDof, CommandBuffer cmd, RTHandle source, RTHandle destination)
+        private void DoAdvancedVignette(BokehDof smartDof, CommandBuffer cmd, RTHandle source, RTHandle destination)
         {
 
         }

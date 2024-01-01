@@ -5,7 +5,7 @@ using UnityEngine.Rendering;
 
 namespace TakoLib.Urp.PostProcess
 {
-    public class SmartDofPass : CustomPostProcessPassBase<SmartDof>
+    public class BokehDofPass : CustomPostProcessPassBase<BokehDof>
     {
         private RTHandle _fullCoCTexture;
 
@@ -14,25 +14,25 @@ namespace TakoLib.Urp.PostProcess
         private float _bokehMaxRadius;
         private float _bokehRcpAspect;
 
-        public SmartDofPass(CustomPostProcessData data, Material material) : base(data, material) { }
+        public BokehDofPass(CustomPostProcessData data, Material material) : base(data, material) { }
 
-        public override void Execute(ref PostProcessParams<SmartDof> parameters)
+        public override void Execute(ref PostProcessParams<BokehDof> parameters)
         {
             SetCommonParams(ref parameters);
             DoSmartDof(parameters.cmd, parameters.volumeComponent, parameters.source, parameters.destination);
         }
 
 
-        private void DoSmartDof(CommandBuffer cmd, SmartDof smartDof, RTHandle source, RTHandle destination)
+        private void DoSmartDof(CommandBuffer cmd, BokehDof bokehDof, RTHandle source, RTHandle destination)
         {
             int downSample = 2;
             Material material = _material;
             int wh = _descriptor.width / downSample;
             int hh = _descriptor.height / downSample;
 
-            float F = smartDof.focalLength.value / 1000f;
-            float A = smartDof.focalLength.value / smartDof.aperture.value;
-            float P = smartDof.focusDistance.value;
+            float F = bokehDof.focalLength.value / 1000f;
+            float A = bokehDof.focalLength.value / bokehDof.aperture.value;
+            float P = bokehDof.focusDistance.value;
             float maxCoC = (A * F) / (P - F);
             const float radiusInPixels = 14;
             float maxRadius = Mathf.Min(0.05f, radiusInPixels / _descriptor.height);
@@ -42,13 +42,13 @@ namespace TakoLib.Urp.PostProcess
             //フォーカス距離、最大CoC、画面サイズに合わせた最大CoC半径、画面のアスペクト比
             cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.CoCParams, new Vector4(P, maxCoC, maxRadius, rcpAspect));
 
-            int hash = smartDof.GetHashCode();
+            int hash = bokehDof.GetHashCode();
             if (hash != _bokehHash || maxRadius != _bokehMaxRadius || rcpAspect != _bokehRcpAspect)
             {
                 _bokehHash = hash;
                 _bokehMaxRadius = maxRadius;
                 _bokehRcpAspect = rcpAspect;
-                PrepareBokehKernel(maxRadius, rcpAspect, smartDof.bladeCount.value, smartDof.bladeCurvature.value, smartDof.bladeRotation.value);
+                PrepareBokehKernel(maxRadius, rcpAspect, bokehDof.bladeCount.value, bokehDof.bladeCurvature.value, bokehDof.bladeRotation.value);
             }
 
             cmd.SetGlobalVectorArray(TakoLibUrpCommon.ShaderId.BokehKernel, _bokehKernel);

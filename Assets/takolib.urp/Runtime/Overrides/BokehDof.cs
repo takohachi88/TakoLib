@@ -6,7 +6,7 @@ using UnityEngine;
 namespace TakoLib.Urp.PostProcess
 {
     [Serializable, VolumeComponentMenuForRenderPipeline("TakoLib/Smart DoF", typeof(UniversalRenderPipeline))]
-    public class SmartDof : VolumeComponent, IPostProcessComponent
+    public class BokehDof : VolumeComponent, IPostProcessComponent
     {
         public BoolParameter enabled = new BoolParameter(false);
         public MinFloatParameter focusDistance = new MinFloatParameter(10f, 0.1f);
