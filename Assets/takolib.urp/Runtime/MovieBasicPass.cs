@@ -32,111 +32,109 @@ namespace TakoLib.Urp.PostProcess
         private void DoMovieBasic()
         {
             MovieBasic movieBasic = _volumeStack.GetComponent<MovieBasic>();
-            _lastBlitIsDestination = false;
 
+            if (!movieBasic || !movieBasic.IsActive()) return;
+
+            _lastBlitIsDestination = false;
             bool chromaticAberration = 0 < movieBasic.chromaticAberrationIntensity.value;
             bool blur = 0 < movieBasic.blurIntensity.value;
             bool vignette = 0 < movieBasic.vignetteIntensity.value;
 
+            //common properties
+            _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.Intensity, movieBasic.intensity.value);
 
-            if (movieBasic || movieBasic.IsActive())
+            //control texture properties
+            switch (movieBasic.controlMode.value)
             {
-                //common properties
-                _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.Intensity, movieBasic.intensity.value);
+                case MovieControlMode.None:
+                    SetKeyword(MovieControlMode.None);
+                    _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.Direction, movieBasic.direction.value);
+                    break;
 
-                //control texture properties
-                switch (movieBasic.controlMode.value)
-                {
-                    case MovieControlMode.None:
-                        SetKeyword(MovieControlMode.None);
-                        _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.Direction, movieBasic.direction.value);
-                        break;
+                case MovieControlMode.Fringe:
+                    SetKeyword(MovieControlMode.Fringe);
+                    _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.Center, movieBasic.center.value);
+                    _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.Rounded, movieBasic.rounded.value ? 1 : 0);
+                    _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.Smoothness, movieBasic.smoothness.value);
+                    break;
 
-                    case MovieControlMode.Fringe:
-                        SetKeyword(MovieControlMode.Fringe);
-                        _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.Center, movieBasic.center.value);
-                        _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.Rounded, movieBasic.rounded.value ? 1 : 0);
-                        _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.Smoothness, movieBasic.smoothness.value);
-                        break;
-
-                    case MovieControlMode.Texture:
-                        Debug.LogError($"{nameof(MovieBasic)}のTextureモードは未実装です。");
-                        SetKeyword(MovieControlMode.Texture);
-                        if (movieBasic.controlTextureRgb.value)
-                        {
-                            _cmd.SetGlobalTexture(TakoLibUrpCommon.ShaderId.ControlTextureRgb, movieBasic.controlTextureRgb.value);
-                            _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.ControlIntensity,
-                                new Vector3(movieBasic.controlIntensityR.value, movieBasic.controlIntensityGb.value.x, movieBasic.controlIntensityGb.value.y));
-                            _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.ControlTiling, movieBasic.tiling.value);
-                        }
-                        break;
-                }
-
-                //chromatic aberration
-                if (chromaticAberration)
-                {
-                    _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.ChromaticAberrationIntensity, movieBasic.chromaticAberrationIntensity.value);
-                    Blitter.BlitCameraTexture(_cmd, _source, _destination, _material, 0);
-                    Swap(ref _source, ref _destination);
-                    _lastBlitIsDestination = true;
-                }
-
-                //blur
-                if (blur)
-                {
-                    //blur properties
-                    _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.BlurIntensity, movieBasic.blurIntensity.value);
-                    _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BlurScale, movieBasic.blurScale.value);
-                    _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.SampleCount, movieBasic.sampleCount.value);
-
-
-                    int divisionFactor = movieBasic.downSamplingFactor.value;
-                    if (1 < divisionFactor)
+                case MovieControlMode.Texture:
+                    Debug.LogError($"{nameof(MovieBasic)}のTextureモードは未実装です。");
+                    SetKeyword(MovieControlMode.Texture);
+                    if (movieBasic.controlTextureRgb.value)
                     {
-                        RenderTextureDescriptor descriptor = _descriptor;
-                        int division = BlurDivision(movieBasic.blurIntensity.value * movieBasic.intensity.value, divisionFactor);
-                        descriptor.width /= division;
-                        descriptor.height /= division;
-                        RenderingUtils.ReAllocateIfNeeded(ref _tempTarget1, descriptor);
-                        RenderingUtils.ReAllocateIfNeeded(ref _tempTarget2, descriptor);
-
-                        _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BlurDirection, new Vector2(0.1f, 0));
-                        Blitter.BlitCameraTexture(_cmd, _source, _tempTarget1, _material, 1);
-                        _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BlurDirection, new Vector2(0, 0.1f));
-                        Blitter.BlitCameraTexture(_cmd, _tempTarget1, _tempTarget2, _material, 1);
-                        _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BlurDirection, new Vector2(0.07f, 0.07f));
-                        Blitter.BlitCameraTexture(_cmd, _tempTarget2, _tempTarget1, _material, 1);
-                        _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BlurDirection, new Vector2(0.07f, -0.07f));
-                        Blitter.BlitCameraTexture(_cmd, _tempTarget1, _tempTarget2, _material, 1);
-
-                        if (vignette) _source = _tempTarget2;
-                        else Blitter.BlitCameraTexture(_cmd, _tempTarget2, _source);
+                        _cmd.SetGlobalTexture(TakoLibUrpCommon.ShaderId.ControlTextureRgb, movieBasic.controlTextureRgb.value);
+                        _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.ControlIntensity,
+                            new Vector3(movieBasic.controlIntensityR.value, movieBasic.controlIntensityGb.value.x, movieBasic.controlIntensityGb.value.y));
+                        _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.ControlTiling, movieBasic.tiling.value);
                     }
-                    else
-                    {
-                        _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BlurDirection, new Vector2(0.1f, 0));
-                        Blitter.BlitCameraTexture(_cmd, _source, _destination, _material, 1);
-                        _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BlurDirection, new Vector2(0, 0.1f));
-                        Blitter.BlitCameraTexture(_cmd, _destination, _source, _material, 1);
-                        _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BlurDirection, new Vector2(0.07f, 0.07f));
-                        Blitter.BlitCameraTexture(_cmd, _source, _destination, _material, 1);
-                        _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BlurDirection, new Vector2(0.07f, -0.07f));
-                        Blitter.BlitCameraTexture(_cmd, _destination, _source, _material, 1);
-                    }
+                    break;
+            }
+
+            //chromatic aberration
+            if (chromaticAberration)
+            {
+                _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.ChromaticAberrationIntensity, movieBasic.chromaticAberrationIntensity.value);
+                Blitter.BlitCameraTexture(_cmd, _source, _destination, _material, 0);
+                Swap(ref _source, ref _destination);
+                _lastBlitIsDestination = true;
+            }
+
+            //blur
+            if (blur)
+            {
+                //blur properties
+                _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.BlurIntensity, movieBasic.blurIntensity.value);
+                _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BlurScale, movieBasic.blurScale.value);
+                _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.SampleCount, movieBasic.sampleCount.value);
+
+
+                int divisionFactor = movieBasic.downSamplingFactor.value;
+                if (1 < divisionFactor)
+                {
+                    RenderTextureDescriptor descriptor = _descriptor;
+                    int division = BlurDivision(movieBasic.blurIntensity.value * movieBasic.intensity.value, divisionFactor);
+                    descriptor.width /= division;
+                    descriptor.height /= division;
+                    RenderingUtils.ReAllocateIfNeeded(ref _tempTarget1, descriptor);
+                    RenderingUtils.ReAllocateIfNeeded(ref _tempTarget2, descriptor);
+
+                    _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BlurDirection, new Vector2(0.1f, 0));
+                    Blitter.BlitCameraTexture(_cmd, _source, _tempTarget1, _material, 1);
+                    _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BlurDirection, new Vector2(0, 0.1f));
+                    Blitter.BlitCameraTexture(_cmd, _tempTarget1, _tempTarget2, _material, 1);
+                    _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BlurDirection, new Vector2(0.07f, 0.07f));
+                    Blitter.BlitCameraTexture(_cmd, _tempTarget2, _tempTarget1, _material, 1);
+                    _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BlurDirection, new Vector2(0.07f, -0.07f));
+                    Blitter.BlitCameraTexture(_cmd, _tempTarget1, _tempTarget2, _material, 1);
+
+                    if (vignette) _source = _tempTarget2;
+                    else Blitter.BlitCameraTexture(_cmd, _tempTarget2, _source);
                 }
+                else
+                {
+                    _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BlurDirection, new Vector2(0.1f, 0));
+                    Blitter.BlitCameraTexture(_cmd, _source, _destination, _material, 1);
+                    _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BlurDirection, new Vector2(0, 0.1f));
+                    Blitter.BlitCameraTexture(_cmd, _destination, _source, _material, 1);
+                    _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BlurDirection, new Vector2(0.07f, 0.07f));
+                    Blitter.BlitCameraTexture(_cmd, _source, _destination, _material, 1);
+                    _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BlurDirection, new Vector2(0.07f, -0.07f));
+                    Blitter.BlitCameraTexture(_cmd, _destination, _source, _material, 1);
+                }
+            }
+
+            //vignette
+            if (vignette)
+            {
+                _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.VignetteIntensity, movieBasic.vignetteIntensity.value * 3f);
+                _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.VignetteSmoothness, movieBasic.vignetteSmoothness.value * 5f);
+                _cmd.SetGlobalColor(TakoLibUrpCommon.ShaderId.VignetteColor, movieBasic.vignetteColor.value);
+                _cmd.SetGlobalInt(TakoLibUrpCommon.ShaderId.BlendMode, (int)movieBasic.vignetteBlendMode.value);
 
                 //vignette
-                if (vignette)
-                {
-                    _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.VignetteIntensity, movieBasic.vignetteIntensity.value * 3f);
-                    _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.VignetteSmoothness, movieBasic.vignetteSmoothness.value * 5f);
-                    _cmd.SetGlobalColor(TakoLibUrpCommon.ShaderId.VignetteColor, movieBasic.vignetteColor.value);
-                    _cmd.SetGlobalInt(TakoLibUrpCommon.ShaderId.BlendMode, (int)movieBasic.vignetteBlendMode.value);
-
-                    //vignette
-                    Blitter.BlitCameraTexture(_cmd, _source, _destination, _material, 2);
-                    _lastBlitIsDestination = !_lastBlitIsDestination;
-                }
+                Blitter.BlitCameraTexture(_cmd, _source, _destination, _material, 2);
+                _lastBlitIsDestination = !_lastBlitIsDestination;
             }
         }
 

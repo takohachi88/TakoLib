@@ -105,6 +105,7 @@ namespace TakoLib.Urp.PostProcess
                 {
                     PostProcessParams parameters = new()
                     {
+                        volumeStack = stack,
                         cmd = cmd,
                         source = source,
                         destination = _destination,
