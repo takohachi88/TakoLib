@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace TakoLib.Urp.PostProcess
 {
-    [Serializable, VolumeComponentMenuForRenderPipeline("TakoLib/Smart DoF", typeof(UniversalRenderPipeline))]
+    [Serializable, VolumeComponentMenuForRenderPipeline("TakoLib/Bokeh DoF", typeof(UniversalRenderPipeline))]
     public class BokehDof : VolumeComponent, IPostProcessComponent
     {
         public BoolParameter enabled = new BoolParameter(false);

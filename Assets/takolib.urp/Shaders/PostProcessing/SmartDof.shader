@@ -9,208 +9,88 @@ Shader "Hidden/TakoLib/PostProcess/SmartDof"
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Color.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
         #include "Packages/com.unity.render-pipelines.universal/Shaders/PostProcessing/Common.hlsl"
+        #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Random.hlsl"
 
-        //CustomPostProcess.cs
-        #define SAMPLE_COUNT 42
 
-        //Toggle this to reduce flickering
-        #define COC_LUMA_WEIGHTING 0
 
-        TEXTURE2D_X(_DofTexture);
-        TEXTURE2D_X(_FullCoCTexture);
+        half _FocusDistance;
+        half _FocusWidth;
+        half _FocusSmooth;
 
-        half4 _SourceSize;
-        half4 _HalfSourceSize;
-        half4 _DownSampleScaleFactor;
-        half4 _CoCParams;
-        half4 _BokehKernel[SAMPLE_COUNT];
-        half4 _BokehConstants;
+        half _Intensity;
 
-        #define FocusDist _CoCParams.x
-        #define MaxCoC _CoCParams.y
-        #define MaxRadius _CoCParams.z
-        #define RcpAspect _CoCParams.w
+        float _AspectRatio;
 
-        half FragCoC(Varyings input) : SV_Target
+        int _SampleCount;
+
+        TEXTURE2D(_TempTarget1);
+        TEXTURE2D(_TempTarget2);
+
+
+        half4 FragFar(Varyings input) : SV_Target
         {
-            float2 uv = input.texcoord;
-            float depth = LOAD_TEXTURE2D_X(_CameraDepthTexture, _SourceSize.xy * uv).x;
-            float linearEyeDepth = LinearEyeDepth(depth, _ZBufferParams);
-
-            half coc = (1 - FocusDist / linearEyeDepth) * MaxCoC;
-            half nearCoC = clamp(coc, -1, 0);
-            half farCoC = saturate(coc);
-
-            return saturate((farCoC + nearCoC + 1) * 0.5);
-        }
-        
-        half4 FragPrefilter(Varyings input) : SV_Target
-        {
-            float2 uv = input.texcoord;
-
-            #if SHADER_TARGET >= 45 && defined(PLATFORM_SUPPORT_GATHER)
-
-            half4 cr = GATHER_RED_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv);
-            half4 cg = GATHER_GREEN_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv);
-            half4 cb = GATHER_BLUE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv);
-
-            half3 c0 = half3(cr.x, cg.x, cb.x);
-            half3 c1 = half3(cr.y, cg.y, cb.y);
-            half3 c2 = half3(cr.z, cg.z, cb.z);
-            half3 c3 = half3(cr.w, cg.w, cb.w);
-
-            half4 cocs = GATHER_TEXTURE2D_X(_FullCoCTexture, sampler_LinearClamp, uv) * 2 - 1;
-            half coc0 = cocs.x;
-            half coc1 = cocs.y;
-            half coc2 = cocs.z;
-            half coc3 = cocs.w;
-
-            //gather‚ªŽg‚¦‚È‚¢ê‡B
-            #else
-
-            float3 duv = _SourceSize.zwz * float3(0.5, 0.5, -0.5);
-            float2 uv0 = uv - duv.xy;
-            float2 uv1 = uv - duv.zy;
-            float2 uv2 = uv + duv.zy;
-            float2 uv3 = uv + duv.xy;
-
-            half3 c0 = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv0).xyz;
-            half3 c1 = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv1).xyz;
-            half3 c2 = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv2).xyz;
-            half3 c3 = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv3).xyz;
-
-            half coc0 = SAMPLE_TEXTURE2D_X(_FullCoCTexture, sampler_LinearClamp, uv0).x * 2 - 1;
-            half coc1 = SAMPLE_TEXTURE2D_X(_FullCoCTexture, sampler_LinearClamp, uv1).x * 2 - 1;
-            half coc2 = SAMPLE_TEXTURE2D_X(_FullCoCTexture, sampler_LinearClamp, uv2).x * 2 - 1;
-            half coc3 = SAMPLE_TEXTURE2D_X(_FullCoCTexture, sampler_LinearClamp, uv3).x * 2 - 1;
-
-            #endif
-
-
-            //reduce flickering
-            #if COC_LUMA_WEIGHTING
-
-            // Apply CoC and luma weights to reduce bleeding and flickering
-            half w0 = abs(coc0) / (Max3(c0.x, c0.y, c0.z) + 1.0);
-            half w1 = abs(coc1) / (Max3(c1.x, c1.y, c1.z) + 1.0);
-            half w2 = abs(coc2) / (Max3(c2.x, c2.y, c2.z) + 1.0);
-            half w3 = abs(coc3) / (Max3(c3.x, c3.y, c3.z) + 1.0);
-
-            // Weighted average of the color samples
-            half3 avg = c0 * w0 + c1 * w1 + c2 * w2 + c3 * w3;
-            avg /= max(w0 + w1 + w2 + w3, 1e-5);
-
-            #else
-
-            half3 avg = (c0 + c1 + c2 + c3) / 4.0;
-
-            #endif
-
-            half cocMin = min(coc0, Min3(coc1, coc2, coc3));
-            half cocMax = max(coc0, Max3(coc1, coc2, coc3));
-            half coc = (-cocMin > cocMax ? cocMin : cocMax) * MaxRadius;
-
-            avg *= smoothstep(0, _SourceSize.w * 2, abs(coc));
-
-            #if defined(UNITY_COLORSPACE_GAMMA)
-            avg = GetSRGBToLinear(avg);
-            #endif
-
-            return half4(avg, coc);
+            half depth = SampleSceneDepth(input.texcoord);
+            half4 blitTexture = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, input.texcoord);
+            return lerp(0, blitTexture, step(depth, _FocusDistance - _FocusWidth * 0.5));
         }
 
-        void Accuulate(half4 samp0, float2 uv, half4 disp, inout half4 farAcc, inout half4 nearAcc)
+        half4 FragNear(Varyings input) : SV_Target
         {
-            half4 samp = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv + disp.wy);
-
-            // Compare CoC of the current sample and the center sample and select smaller one
-            half farCoC = max(min(samp0.a, samp.a), 0.0);
-
-            // Compare the CoC to the sample distance & add a small margin to smooth out
-            half farWeight = saturate((farCoC - disp.z + _BokehConstants.y) / _BokehConstants.y);
-            half nearWeight = saturate((-samp.a - disp.z + _BokehConstants.y) / _BokehConstants.y);
-
-            // Cut influence from focused areas because they're darkened by CoC premultiplying. This is only
-            // needed for near field
-            nearWeight *= step(_BokehConstants.x, -samp.a);
-
-            // Accumulation
-            farAcc += half4(samp.rgb, 1.0h) * farWeight;
-            nearAcc += half4(samp.rgb, 1.0h) * nearWeight;
+            half depth = SampleSceneDepth(input.texcoord);
+            half4 blitTexture = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, input.texcoord);
+            return lerp(0, blitTexture, step(_FocusDistance + _FocusWidth * 0.5, depth));
         }
 
-        half4 FragBlur(Varyings input) : SV_Target
+
+        half4 Blur(texture2D tex, float2 uv, float2 positionCS, half2 direction, int sampleCount)
         {
-            float2 uv = input.texcoord;
-
-            half4 samp0 = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv);
-
-            half4 farAcc = 0;
-            half4 nearAcc = 0;
-
-            Accuulate(samp0, uv, 0, farAcc, nearAcc);
+            half4 color = 0;
 
             UNITY_LOOP
-            for(int si = 0; si < SAMPLE_COUNT; si++)
+            for(int i = 0; i < sampleCount; i++)
             {
-                Accuulate(samp0, uv, _BokehKernel[si], farAcc, nearAcc);
+                half random = InterleavedGradientNoise(positionCS, 0);
+                float2 offset = direction * ((i + random - 0.5 - (sampleCount - 1) * 0.5) / (float)(sampleCount - 1));
+                color += SAMPLE_TEXTURE2D_X(tex, sampler_LinearClamp, uv + offset);
             }
-
-            // Get the weighted average
-            farAcc.rgb /= farAcc.a + (farAcc.a == 0.0);     // Zero-div guard
-            nearAcc.rgb /= nearAcc.a + (nearAcc.a == 0.0);
-
-            // Normalize the total of the weights for the near field
-            nearAcc.a *= PI / (SAMPLE_COUNT + 1);
-
-            // Alpha premultiplying
-            half alpha = saturate(nearAcc.a);
-            half3 rgb = lerp(farAcc.rgb, nearAcc.rgb, alpha);
-
-            return half4(rgb, alpha);
-        }
-
-        half4 FragPostBlur(Varyings input) : SV_Target
-        {
-            UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-            float2 uv = UnityStereoTransformScreenSpaceTex(input.texcoord);
-
-            // 9-tap tent filter with 4 bilinear samples
-            float4 duv = _SourceSize.zwzw * _DownSampleScaleFactor.zwzw * float4(0.5, 0.5, -0.5, 0);
-            half4 acc;
-            acc  = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv - duv.xy);
-            acc += SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv - duv.zy);
-            acc += SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv + duv.zy);
-            acc += SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv + duv.xy);
-            return acc * 0.25;
-        }
-
-        half4 FragComposite(Varyings input) : SV_Target
-        {
-            UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
-            float2 uv = UnityStereoTransformScreenSpaceTex(input.texcoord);
-
-            half4 dof = SAMPLE_TEXTURE2D_X(_DofTexture, sampler_LinearClamp, uv);
-            half coc = SAMPLE_TEXTURE2D_X(_FullCoCTexture, sampler_LinearClamp, uv).r;
-            coc = (coc - 0.5) * 2.0 * MaxRadius;
-
-            // Convert CoC to far field alpha value
-            float ffa = smoothstep(_SourceSize.w * 2.0, _SourceSize.w * 4.0, coc);
-
-            half4 color = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, uv);
-
-        #if defined(UNITY_COLORSPACE_GAMMA)
-            color = GetSRGBToLinear(color);
-        #endif
-
-            half alpha = Max3(dof.r, dof.g, dof.b);
-            color = lerp(color, half4(dof.rgb, alpha), ffa + dof.a - ffa * dof.a);
-
-        #if defined(UNITY_COLORSPACE_GAMMA)
-            color = GetLinearToSRGB(color);
-        #endif
+            color *= rcp(sampleCount);
             return color;
         }
+
+        half GetIntensity(float2 uv)
+        {
+            half depth = SampleSceneDepth(uv);
+            half far = _FocusDistance + _FocusWidth * 0.5;
+            half near = _FocusDistance - _FocusWidth * 0.5;
+            return (smoothstep(far, far + _FocusSmooth, depth) + 1 - smoothstep(near - _FocusSmooth, near, depth)) * _Intensity;
+        }
+
+
+        half4 FragBlurHorizontal(Varyings input) : SV_Target
+        {
+            half intensity = GetIntensity(input.texcoord);
+            return Blur(_BlitTexture, input.texcoord, input.positionCS.xy, float2(intensity, 0), _SampleCount);
+        }
+
+
+        half4 FragBlurVertical(Varyings input) : SV_Target
+        {
+            half intensity = GetIntensity(input.texcoord);
+            return Blur(_BlitTexture, input.texcoord, input.positionCS.xy, float2(0, intensity * _AspectRatio), _SampleCount);
+        }
+
+        
+        half4 FragComposite(Varyings input) : SV_Target
+        {
+            half4 output = 0;
+            half4 blitTexture = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, input.texcoord);
+            half4 far = SAMPLE_TEXTURE2D_X(_TempTarget1, sampler_LinearClamp, input.texcoord);
+            half4 near = SAMPLE_TEXTURE2D_X(_TempTarget2, sampler_LinearClamp, input.texcoord);
+            output.rgb = lerp(blitTexture.rgb, far.rgb, far.a);
+            output.rgb = lerp(output.rgb, near.rgb, near.a);
+            return output;
+        }
+        
 
 
     ENDHLSL
@@ -227,56 +107,51 @@ Shader "Hidden/TakoLib/PostProcess/SmartDof"
 
         Pass
         {
-            Name "Bokeh Depth Of Field CoC"
+            Name "Bokeh Split Far"
 
             HLSLPROGRAM
                 #pragma vertex Vert
-                #pragma fragment FragCoC
-                #pragma target 4.5
+                #pragma fragment FragFar
             ENDHLSL
         }
 
         Pass
         {
-            Name "Bokeh Depth Of Field Prefilter"
+            Name "Bokeh Split Near"
 
             HLSLPROGRAM
                 #pragma vertex Vert
-                #pragma fragment FragPrefilter
-                #pragma target 4.5
+                #pragma fragment FragNear
             ENDHLSL
         }
 
         Pass
         {
-            Name "Bokeh Depth Of Field Blur"
+            Name "Bokeh Blur Horizontal"
 
             HLSLPROGRAM
                 #pragma vertex Vert
-                #pragma fragment FragBlur
-                #pragma target 4.5
+                #pragma fragment FragBlurHorizontal
             ENDHLSL
         }
 
         Pass
         {
-            Name "Bokeh Depth Of Field Post Blur"
+            Name "Bokeh Blur Vertical"
 
             HLSLPROGRAM
                 #pragma vertex Vert
-                #pragma fragment FragPostBlur
-                #pragma target 4.5
+                #pragma fragment FragBlurVertical
             ENDHLSL
         }
 
         Pass
         {
-            Name "Bokeh Depth Of Field Composite"
+            Name "Bokeh Composite"
 
             HLSLPROGRAM
                 #pragma vertex Vert
                 #pragma fragment FragComposite
-                #pragma target 4.5
             ENDHLSL
         }
     }

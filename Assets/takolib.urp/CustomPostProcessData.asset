@@ -13,6 +13,8 @@ MonoBehaviour:
   m_Name: CustomPostProcessData
   m_EditorClassIdentifier: 
   resources:
+    bokehDof: {fileID: 4800000, guid: 8a5c3275d1679cc45bfa7a9f26c3980c, type: 3}
     smartDof: {fileID: 4800000, guid: 01da6ada9efc6e14cac05faab9681bde, type: 3}
     radialBlur: {fileID: 4800000, guid: ef0758a5f433e9b438f31030777622ce, type: 3}
-    advancedVignette: {fileID: 4800000, guid: 1608a34fbf369bc48b87fec82bee283e, type: 3}
+    movieBasic: {fileID: 4800000, guid: d9cc5431d7ba36d41a341ddcfe87e86c, type: 3}
+    uber: {fileID: 4800000, guid: 1608a34fbf369bc48b87fec82bee283e, type: 3}

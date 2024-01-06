@@ -37,14 +37,20 @@ namespace TakoLib.Urp.PostProcess
         [Serializable, ReloadGroup]
         public class CustomPostProcessResources
         {
+            [Reload("Shaders/PostProcessing/BokehDof.shader")]
+            public Shader bokehDof;
+
             [Reload("Shaders/PostProcessing/SmartDof.shader")]
             public Shader smartDof;
 
             [Reload("Shaders/PostProcessing/RadialBlur.shader")]
             public Shader radialBlur;
 
-            [Reload("Shaders/PostProcessing/AdvancedVignette.shader")]
-            public Shader advancedVignette;
+            [Reload("Shaders/PostProcessing/MovieBasic.shader")]
+            public Shader movieBasic;
+
+            [Reload("Shaders/PostProcessing/Uber.shader")]
+            public Shader uber;
         }
 
         public CustomPostProcessResources resources;

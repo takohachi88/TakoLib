@@ -11,7 +11,7 @@ Shader "Custom/#NAME#"
         ZTest Always
 
         Pass
-        {            
+        {
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Fragment

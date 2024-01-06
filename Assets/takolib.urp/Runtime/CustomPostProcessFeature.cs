@@ -1,7 +1,7 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Assertions;
-using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 
@@ -32,21 +32,22 @@ namespace TakoLib.Urp.PostProcess
     public class CustomPostProcessPass : ScriptableRenderPass
     {
         private RenderTextureDescriptor _descriptor;
-        private RTHandle _tempTarget1;
-        private RTHandle _tempTarget2;
         private RTHandle _destination;
 
-        private BokehDofPass _smartDofPass;
+        private BokehDofPass _bokehDofPass;
+        private SmartDofPass _smartDofPass;
         private RadialBlurPass _radialBlurPass;
-        private AdvancedVignettePass _advancedVignettePass;
-
+        private MovieBasicPass _movieBasicPass;
+        private UberPass _uberPass;
         private MaterialLibrary _materialLibrary;
 
         private CustomPostProcessData _data;
 
-        private static ProfilingSampler _smartDofSampler = new ProfilingSampler(nameof(BokehDof));
+        private static ProfilingSampler _bokehDofSampler = new ProfilingSampler(nameof(BokehDof));
+        private static ProfilingSampler _smartDofSampler = new ProfilingSampler(nameof(SmartDof));
         private static ProfilingSampler _radialBlurSampler = new ProfilingSampler(nameof(RadialBlur));
-        private static ProfilingSampler _advancedVignetteSampler = new ProfilingSampler(nameof(AdvancedVignette));
+        private static ProfilingSampler _movieBasicSampler = new ProfilingSampler(nameof(MovieBasic));
+        private static ProfilingSampler _uberSampler = new ProfilingSampler("UberEffect");
 
         private bool destinationIsCameraColor = false;
 
@@ -56,9 +57,11 @@ namespace TakoLib.Urp.PostProcess
             _data = data;
             _materialLibrary = new MaterialLibrary(_data.resources);
 
-            _smartDofPass = new BokehDofPass(_data, _materialLibrary.smartDof);
+            _bokehDofPass = new BokehDofPass(_data, _materialLibrary.bokehDof);
+            _smartDofPass = new SmartDofPass(_data, _materialLibrary.smartDof);
             _radialBlurPass = new RadialBlurPass(_data, _materialLibrary.radialBlur);
-            _advancedVignettePass = new AdvancedVignettePass(_data, _materialLibrary.advancedVignette);
+            _movieBasicPass = new MovieBasicPass(_data, _materialLibrary.movieBasic);
+            _uberPass = new UberPass(_data, _materialLibrary.uber);
         }
 
         public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
@@ -68,8 +71,6 @@ namespace TakoLib.Urp.PostProcess
         public override void Configure(CommandBuffer cmd, RenderTextureDescriptor cameraTextureDescriptor)
         {
             _descriptor = TakoLibUrpCommon.PostProcessDescriptor(cameraTextureDescriptor.width, cameraTextureDescriptor.height, cameraTextureDescriptor.graphicsFormat);
-            RenderingUtils.ReAllocateIfNeeded(ref _tempTarget1, _descriptor);
-            RenderingUtils.ReAllocateIfNeeded(ref _tempTarget2, _descriptor);
             RenderingUtils.ReAllocateIfNeeded(ref _destination, _descriptor);
         }
 
@@ -79,7 +80,6 @@ namespace TakoLib.Urp.PostProcess
 
             RTHandle source = renderingData.cameraData.renderer.cameraColorTargetHandle;
             destinationIsCameraColor = false;
-            float aspectRatio = _descriptor.width / (float)_descriptor.height;
 
             if (!source.rt)
             {
@@ -87,65 +87,95 @@ namespace TakoLib.Urp.PostProcess
                 return;
             }
 
+            float aspectRatio = _descriptor.width / (float)_descriptor.height;
+            cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.AspectRatio, aspectRatio);
+
             VolumeStack stack = VolumeManager.instance.stack;
-            BokehDof smartDof = stack.GetComponent<BokehDof>();
+            //こことそれぞれのExecute内で計2回GetComponentしてしまうのを何とかしたい気持ちに駆られそうになるが、
+            //VolumeStackのGetComponentの中身はdictionaryのTryGetValueなので十分軽くあまり問題ない。
+            BokehDof bokehDof = stack.GetComponent<BokehDof>();
+            SmartDof smartDof = stack.GetComponent<SmartDof>();
             RadialBlur radialBlur = stack.GetComponent<RadialBlur>();
             AdvancedVignette advancedVignette = stack.GetComponent<AdvancedVignette>();
+            MovieBasic movieBasic = stack.GetComponent<MovieBasic>();
+
+            if (bokehDof.IsActive())
+            {
+                using (new ProfilingScope(cmd, _bokehDofSampler))
+                {
+                    PostProcessParams parameters = new()
+                    {
+                        cmd = cmd,
+                        source = source,
+                        destination = _destination,
+                        descriptor = _descriptor,
+                    };
+                    if (_bokehDofPass.Execute(ref parameters)) Swap(ref source, ref _destination);
+                }
+            }
 
             if (smartDof.IsActive())
             {
                 using (new ProfilingScope(cmd, _smartDofSampler))
                 {
-                    PostProcessParams<BokehDof> parameters = new()
+                    PostProcessParams parameters = new()
                     {
+                        volumeStack = stack,
                         cmd = cmd,
-                        volumeComponent = smartDof,
                         source = source,
                         destination = _destination,
-                        tempTarget1 = _tempTarget1,
-                        tempTarget2 = _tempTarget2,
                         descriptor = _descriptor,
                     };
-                    _smartDofPass.Execute(ref parameters);
-                    Swap(ref source, ref _destination);
+                    if (_smartDofPass.Execute(ref parameters)) Swap(ref source, ref _destination);
                 }
             }
+
 
             if (radialBlur.IsActive())
             {
                 using (new ProfilingScope(cmd, _radialBlurSampler))
                 {
-                    PostProcessParams<RadialBlur> parameters = new()
+                    PostProcessParams parameters = new()
                     {
+                        volumeStack = stack,
                         cmd = cmd,
-                        volumeComponent = radialBlur,
                         source = source,
                         destination = _destination,
                     };
-                    _radialBlurPass.Execute(ref parameters);
-                    Swap(ref source, ref _destination);
+                    if (_radialBlurPass.Execute(ref parameters)) Swap(ref source, ref _destination);
+                }
+            }
+
+            if (movieBasic.IsActive())
+            {
+                using (new ProfilingScope(cmd, _movieBasicSampler))
+                {
+                    PostProcessParams parameters = new()
+                    {
+                        volumeStack = stack,
+                        cmd = cmd,
+                        source = source,
+                        destination = _destination,
+                        descriptor = _descriptor,
+                    };
+                    if (_movieBasicPass.Execute(ref parameters)) Swap(ref source, ref _destination);
                 }
             }
 
             if (advancedVignette.IsActive())
             {
-                using (new ProfilingScope(cmd, _advancedVignetteSampler))
+                using (new ProfilingScope(cmd, _uberSampler))
                 {
-                    PostProcessParams<AdvancedVignette> parameters = new()
+                    PostProcessParams parameters = new()
                     {
+                        volumeStack = stack,
                         cmd = cmd,
-                        volumeComponent = advancedVignette,
                         source = source,
                         destination = _destination,
-                        aspectRatio = aspectRatio,
                     };
-                    _advancedVignettePass.Execute(ref parameters);
-                    Swap(ref source, ref _destination);
+                    if (_uberPass.Execute(ref parameters)) Swap(ref source, ref _destination);
                 }
             }
-
-
-
 
             if (destinationIsCameraColor)
             {
@@ -171,33 +201,40 @@ namespace TakoLib.Urp.PostProcess
 
         public class MaterialLibrary : IDisposable
         {
+            public readonly Material bokehDof;
             public readonly Material smartDof;
             public readonly Material radialBlur;
-            public readonly Material advancedVignette;
+            public readonly Material movieBasic;
+            public readonly Material uber;
 
             public MaterialLibrary(CustomPostProcessData.CustomPostProcessResources resources)
             {
                 Assert.IsNotNull(resources);
+                bokehDof = Load(resources.bokehDof);
                 smartDof = Load(resources.smartDof);
                 radialBlur = Load(resources.radialBlur);
-                advancedVignette = Load(resources.advancedVignette);
+                movieBasic = Load(resources.movieBasic);
+                uber = Load(resources.uber);
             }
 
             private Material Load(Shader shader)
             {
+                //AssertはUnityの処理が止まらなくなり操作不能に陥るため不可。
                 if (!shader || !shader.isSupported)
                 {
                     Debug.LogError("shader is null or not supported");
-                    return null;
+                    //return null;
                 }
                 return CoreUtils.CreateEngineMaterial(shader);
             }
 
             public void Dispose()
             {
+                CoreUtils.Destroy(bokehDof);
                 CoreUtils.Destroy(smartDof);
                 CoreUtils.Destroy(radialBlur);
-                CoreUtils.Destroy(advancedVignette);
+                CoreUtils.Destroy(movieBasic);
+                CoreUtils.Destroy(uber);
             }
         }
     }

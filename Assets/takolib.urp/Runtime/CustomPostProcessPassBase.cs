@@ -1,18 +1,19 @@
+using System;
 using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace TakoLib.Urp.PostProcess
 {
-    public abstract class CustomPostProcessPassBase<T> where T : VolumeComponent
+    public abstract class CustomPostProcessPassBase
     {
+        protected CommandBuffer _cmd;
         protected RTHandle _source;
         protected RTHandle _destination;
-        protected RTHandle _tempTarget1;
-        protected RTHandle _tempTarget2;
         protected RenderTextureDescriptor _descriptor;
 
         protected CustomPostProcessData _data;
         protected Material _material;
+        protected VolumeStack _volumeStack;
 
         public CustomPostProcessPassBase(CustomPostProcessData data, Material material)
         {
@@ -20,27 +21,30 @@ namespace TakoLib.Urp.PostProcess
             _material = material;
         }
 
-        protected void SetCommonParams(ref PostProcessParams<T> parameter)
+        protected void SetCommonParams(ref PostProcessParams parameter)
         {
+            _cmd = parameter.cmd;
+            _volumeStack = parameter.volumeStack;
             _source = parameter.source;
             _destination = parameter.destination;
-            _tempTarget1 = parameter.tempTarget1;
-            _tempTarget2 = parameter.tempTarget2;
             _descriptor = parameter.descriptor;
         }
 
-        public abstract void Execute(ref PostProcessParams<T> parameter);
+
+        /// <summary>
+        /// passを実行する。
+        /// </summary>
+        /// <param name="parameter">エフェクトに必要なパラメータ</param>
+        /// <returns>最後のblit先がdestinationか</returns>
+        public abstract bool Execute(ref PostProcessParams parameter);
     }
 
-    public struct PostProcessParams<T> where T : VolumeComponent
+    public ref struct PostProcessParams
     {
+        public VolumeStack volumeStack;
         public CommandBuffer cmd;
-        public T volumeComponent;
         public RTHandle source;
         public RTHandle destination;
-        public RTHandle tempTarget1;
-        public RTHandle tempTarget2;
-        public RenderTextureDescriptor descriptor;
-        public float aspectRatio;
+        public RenderTextureDescriptor descriptor; //TODO: public ref にしたいがC#10までお預け。
     }
 }

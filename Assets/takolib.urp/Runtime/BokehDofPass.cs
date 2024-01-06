@@ -5,7 +5,7 @@ using UnityEngine.Rendering;
 
 namespace TakoLib.Urp.PostProcess
 {
-    public class BokehDofPass : CustomPostProcessPassBase<BokehDof>
+    public class BokehDofPass : CustomPostProcessPassBase
     {
         private RTHandle _fullCoCTexture;
 
@@ -14,17 +14,23 @@ namespace TakoLib.Urp.PostProcess
         private float _bokehMaxRadius;
         private float _bokehRcpAspect;
 
+        private RTHandle _pingTexture;
+        private RTHandle _pongTexture;
+
+
         public BokehDofPass(CustomPostProcessData data, Material material) : base(data, material) { }
 
-        public override void Execute(ref PostProcessParams<BokehDof> parameters)
+        public override bool Execute(ref PostProcessParams parameters)
         {
             SetCommonParams(ref parameters);
-            DoSmartDof(parameters.cmd, parameters.volumeComponent, parameters.source, parameters.destination);
+            DoBokehDof();
+            return true;
         }
 
 
-        private void DoSmartDof(CommandBuffer cmd, BokehDof bokehDof, RTHandle source, RTHandle destination)
+        private void DoBokehDof()
         {
+            BokehDof bokehDof = _volumeStack.GetComponent<BokehDof>();
             int downSample = 2;
             Material material = _material;
             int wh = _descriptor.width / downSample;
@@ -40,7 +46,7 @@ namespace TakoLib.Urp.PostProcess
 
             CoreUtils.SetKeyword(material, TakoLibUrpCommon.Keyword.UseFastSrgbLinearConversion, true);
             //フォーカス距離、最大CoC、画面サイズに合わせた最大CoC半径、画面のアスペクト比
-            cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.CoCParams, new Vector4(P, maxCoC, maxRadius, rcpAspect));
+            _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.CoCParams, new Vector4(P, maxCoC, maxRadius, rcpAspect));
 
             int hash = bokehDof.GetHashCode();
             if (hash != _bokehHash || maxRadius != _bokehMaxRadius || rcpAspect != _bokehRcpAspect)
@@ -51,36 +57,36 @@ namespace TakoLib.Urp.PostProcess
                 PrepareBokehKernel(maxRadius, rcpAspect, bokehDof.bladeCount.value, bokehDof.bladeCurvature.value, bokehDof.bladeRotation.value);
             }
 
-            cmd.SetGlobalVectorArray(TakoLibUrpCommon.ShaderId.BokehKernel, _bokehKernel);
+            _cmd.SetGlobalVectorArray(TakoLibUrpCommon.ShaderId.BokehKernel, _bokehKernel);
 
             RenderTextureDescriptor cocDescriptor = TakoLibUrpCommon.PostProcessDescriptor(_descriptor.width, _descriptor.height, GraphicsFormat.R8_UNorm);
             RenderTextureDescriptor tempDescriptor = TakoLibUrpCommon.PostProcessDescriptor(wh, hh, GraphicsFormat.R16G16B16A16_SFloat);
 
             RenderingUtils.ReAllocateIfNeeded(ref _fullCoCTexture, cocDescriptor, FilterMode.Bilinear, TextureWrapMode.Clamp);
-            RenderingUtils.ReAllocateIfNeeded(ref _tempTarget1, tempDescriptor, FilterMode.Bilinear, TextureWrapMode.Clamp);
-            RenderingUtils.ReAllocateIfNeeded(ref _tempTarget2, tempDescriptor, FilterMode.Bilinear, TextureWrapMode.Clamp);
+            RenderingUtils.ReAllocateIfNeeded(ref _pingTexture, tempDescriptor, FilterMode.Bilinear, TextureWrapMode.Clamp);
+            RenderingUtils.ReAllocateIfNeeded(ref _pongTexture, tempDescriptor, FilterMode.Bilinear, TextureWrapMode.Clamp);
 
-            TakoLibUrpCommon.SetSourceSize(cmd, _descriptor);
-            cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.DownSampleScaleFactor, new Vector4(1f / downSample, 1f / downSample, downSample, downSample));
+            TakoLibUrpCommon.SetSourceSize(_cmd, _descriptor);
+            _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.DownSampleScaleFactor, new Vector4(1f / downSample, 1f / downSample, downSample, downSample));
             float uvMargin = (1f / _descriptor.height) * downSample;
-            cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BokehConstants, new Vector4(uvMargin, uvMargin * 2f));
+            _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.BokehConstants, new Vector4(uvMargin, uvMargin * 2f));
 
             //CoC
-            Blitter.BlitCameraTexture(cmd, source, _fullCoCTexture, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, material, 0);
-            cmd.SetGlobalTexture(TakoLibUrpCommon.ShaderId.FullCoCTexture, _fullCoCTexture);
+            Blitter.BlitCameraTexture(_cmd, _source, _fullCoCTexture, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, material, 0);
+            _cmd.SetGlobalTexture(TakoLibUrpCommon.ShaderId.FullCoCTexture, _fullCoCTexture);
 
             //Downscale, prefilter color + coc
-            Blitter.BlitCameraTexture(cmd, source, _tempTarget1, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, material, 1);
+            Blitter.BlitCameraTexture(_cmd, _source, _pingTexture, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, material, 1);
 
             //bokeh blur
-            Blitter.BlitCameraTexture(cmd, _tempTarget1, _tempTarget2, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, material, 2);
+            Blitter.BlitCameraTexture(_cmd, _pingTexture, _pongTexture, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, material, 2);
 
             //post-filtering
-            Blitter.BlitCameraTexture(cmd, _tempTarget2, _tempTarget1, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, material, 3);
+            Blitter.BlitCameraTexture(_cmd, _pongTexture, _pingTexture, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, material, 3);
 
             //composite
-            cmd.SetGlobalTexture(TakoLibUrpCommon.ShaderId.DofTexture, _tempTarget1);
-            Blitter.BlitCameraTexture(cmd, source, destination, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, material, 4);
+            _cmd.SetGlobalTexture(TakoLibUrpCommon.ShaderId.DofTexture, _pingTexture);
+            Blitter.BlitCameraTexture(_cmd, _source, _destination, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store, material, 4);
         }
 
 
