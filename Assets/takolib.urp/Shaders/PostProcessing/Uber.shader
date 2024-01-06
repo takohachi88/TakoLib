@@ -9,24 +9,26 @@ Shader "Hiddden/TakoLib/PostProcess/Uber"
         #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Random.hlsl"
 
         half _VignetteIntensity;
-        half _Smoothness;
+        half _VignetteSmoothness;
         float2 _VignetteCenter;
         half3 _VignetteColor;
         int _Rounded;
         float _AspectRatio;
         int _BlendMode;
-        int _SampleCount;
 
-        half4 Fragment (Varyings input) : SV_Target
+        half _PosterizationIntensity;
+        int _ToneCount;
+
+        bool _Nega;
+        half _NegaIntensity;
+
+        half4 Vignette (Varyings input, half4 destination)
         {
-            half4 output = 0;
+            half4 output = destination;
 
-            output += SAMPLE_TEXTURE2D(_BlitTexture, sampler_LinearClamp, input.texcoord);
-
-            #if defined(_VIGNETTE)
             float2 dist = abs(input.texcoord - _VignetteCenter) * _VignetteIntensity;
             dist.x *= _Rounded ? _AspectRatio : 1;
-            half vignette = saturate(1 - pow(saturate(1.0 - dot(dist, dist)), _Smoothness + HALF_EPS));
+            half vignette = saturate(1 - pow(saturate(1.0 - dot(dist, dist)), _VignetteSmoothness + HALF_EPS));
             
             half3 color = 0;
             color += (_BlendMode == 0) * lerp(output.rgb, _VignetteColor, vignette);
@@ -35,6 +37,24 @@ Shader "Hiddden/TakoLib/PostProcess/Uber"
             color += (_BlendMode == 3) * lerp(output.rgb, (1 - output.rgb) * _VignetteColor, vignette);
             
             output.rgb = color;
+
+            return output;
+        }
+
+        half4 Fragment (Varyings input) : SV_Target
+        {
+            half4 output = SAMPLE_TEXTURE2D(_BlitTexture, sampler_LinearClamp, input.texcoord);
+
+            if(0 < _PosterizationIntensity)
+            {
+                output.rgb = lerp(output.rgb, round(output.rgb * _ToneCount) * rcp(_ToneCount), _PosterizationIntensity);
+            }
+
+            if(_Nega) output.rgb = lerp(output.rgb, 1 - output.rgb, _NegaIntensity);
+
+            #if defined(_VIGNETTE)
+
+            output = Vignette(input, output);
 
             #endif
 

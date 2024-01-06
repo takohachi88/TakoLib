@@ -9,9 +9,9 @@ namespace TakoLib.Urp.PostProcess
     public class AdvancedVignette : VolumeComponent, IPostProcessComponent
     {
         public ClampedFloatParameter intensity = new ClampedFloatParameter(0, 0, 1);
-        public ClampedFloatParameter smoothness = new ClampedFloatParameter(0, 0, 1);
+        public NoInterpClampedFloatParameter smoothness = new NoInterpClampedFloatParameter(0, 0, 1);
         public BoolParameter rounded = new BoolParameter(false);
-        public ColorParameter color = new ColorParameter(new Color(0, 0.4f, 0.4f));
+        public NoInterpColorParameter color = new NoInterpColorParameter(new Color(0, 0.4f, 0.4f));
         public NoInterpVector2Parameter center = new NoInterpVector2Parameter(new Vector2(0.5f, 0.5f));
         public BlendModeParameter blendMode = new BlendModeParameter(BlendMode.Multiply);
 

@@ -15,51 +15,67 @@ namespace TakoLib.Urp.PostProcess
     {
         [Header("Common")]
         public ClampedFloatParameter intensity = new ClampedFloatParameter(0, 0, 1);
+        public BoolParameter rounded = new BoolParameter(false);
 
         [Header("Blur")]
-        public ClampedFloatParameter blurIntensity = new ClampedFloatParameter(1, 0, 1);
+        public NoInterpClampedFloatParameter blurIntensity = new NoInterpClampedFloatParameter(1, 0, 1);
         public NoInterpVector2Parameter blurScale = new NoInterpVector2Parameter(Vector2.one);
-        public ClampedIntParameter sampleCount = new ClampedIntParameter(4, 2, 15);
-        public MinIntParameter downSamplingFactor = new MinIntParameter(1, 1);
+        public NoInterpClampedIntParameter sampleCount = new NoInterpClampedIntParameter(5, 2, 15);
+        public NoInterpMinIntParameter downSamplingFactor = new NoInterpMinIntParameter(1, 1);
+        public NoInterpClampedIntParameter blurDimention = new NoInterpClampedIntParameter(3, 1, 6);
 
         [Header("Control")]
         public MovieControlModeParameter controlMode = new MovieControlModeParameter(MovieControlMode.None);
         public NoInterpVector2Parameter direction = new NoInterpVector2Parameter(new Vector2(1, 0));
 
         public NoInterpVector2Parameter center = new NoInterpVector2Parameter(new Vector2(0.5f, 0.5f));
-        public ClampedFloatParameter smoothness = new ClampedFloatParameter(0, 0, 1);
-        public BoolParameter rounded = new BoolParameter(false);
+        public NoInterpClampedFloatParameter smoothness = new NoInterpClampedFloatParameter(1, 0, 1);
 
         [Tooltip("R:intensity, GB: direction")]
         public TextureParameter controlTextureRgb = new TextureParameter(null);
-        public ClampedFloatParameter controlIntensityR = new ClampedFloatParameter(0, 0, 1);
+        public NoInterpClampedFloatParameter controlIntensityR = new NoInterpClampedFloatParameter(0, 0, 1);
         public NoInterpVector2Parameter controlIntensityGb = new NoInterpVector2Parameter(new Vector2(0.5f, 0.5f));
         public NoInterpVector2Parameter tiling = new NoInterpVector2Parameter(Vector2.one);
 
         [Header("Chromatic Aberration")]
-        public ClampedFloatParameter chromaticAberrationIntensity = new ClampedFloatParameter(0, 0, 1);
+        public NoInterpClampedFloatParameter chromaticAberrationIntensity = new NoInterpClampedFloatParameter(0, 0, 1);
 
         [Header("Vignette")]
-        public ClampedFloatParameter vignetteIntensity = new ClampedFloatParameter(0, 0, 1);
-        public ClampedFloatParameter vignetteSmoothness = new ClampedFloatParameter(0, 0, 1);
-        public ColorParameter vignetteColor = new ColorParameter(new Color(0, 0, 0));
+        public NoInterpClampedFloatParameter vignetteIntensity = new NoInterpClampedFloatParameter(0, 0, 1);
+        public NoInterpClampedFloatParameter vignetteSmoothness = new NoInterpClampedFloatParameter(0, 0, 1);
+        public NoInterpColorParameter vignetteColor = new NoInterpColorParameter(new Color(0, 0, 0));
         public BlendModeParameter vignetteBlendMode = new BlendModeParameter(BlendMode.Multiply);
 
         public bool IsActive() => 0 < intensity.value;
         public bool IsTileCompatible() => true;
     }
 
+    public enum MovieControlMode
+    {
+        None,
+        Fringe,
+        Texture,
+    }
+
+    [Serializable]
+    public sealed class MovieControlModeParameter : VolumeParameter<MovieControlMode>
+    {
+        public MovieControlModeParameter(MovieControlMode value, bool overrideState = false) : base(value, overrideState) { }
+    }
+
 #if UNITY_EDITOR
 
     [CustomEditor(typeof(MovieBasic))]
-    sealed class MovieBasicEditor : VolumeComponentEditor
+    public sealed class MovieBasicEditor : VolumeComponentEditor
     {
         private SerializedDataParameter _intensity;
+        private SerializedDataParameter _rounded;
 
         private SerializedDataParameter _blurIntensity;
         private SerializedDataParameter _blurScale;
         private SerializedDataParameter _sampleCount;
         private SerializedDataParameter _downSampleFactor;
+        private SerializedDataParameter _blurDimention;
 
         private SerializedDataParameter _controlMode;
 
@@ -67,7 +83,6 @@ namespace TakoLib.Urp.PostProcess
 
         private SerializedDataParameter _center;
         private SerializedDataParameter _smoothness;
-        private SerializedDataParameter _rounded;
 
         private SerializedDataParameter _controlTextureRgb;
         private SerializedDataParameter _controlIntensityR;
@@ -88,11 +103,13 @@ namespace TakoLib.Urp.PostProcess
             PropertyFetcher<MovieBasic> properties = new PropertyFetcher<MovieBasic>(serializedObject);
 
             _intensity = Unpack(properties.Find(x => x.intensity));
+            _rounded = Unpack(properties.Find(x => x.rounded));
 
             _blurIntensity = Unpack(properties.Find(x => x.blurIntensity));
             _blurScale = Unpack(properties.Find(x => x.blurScale));
             _sampleCount = Unpack(properties.Find(x => x.sampleCount));
             _downSampleFactor = Unpack(properties.Find(x => x.downSamplingFactor));
+            _blurDimention = Unpack(properties.Find(x => x.blurDimention));
 
             _controlMode = Unpack(properties.Find(x => x.controlMode));
 
@@ -100,7 +117,6 @@ namespace TakoLib.Urp.PostProcess
 
             _center = Unpack(properties.Find(x => x.center));
             _smoothness = Unpack(properties.Find(x => x.smoothness));
-            _rounded = Unpack(properties.Find(x => x.rounded));
             
             _controlTextureRgb = Unpack(properties.Find(x => x.controlTextureRgb));
             _controlIntensityR = Unpack(properties.Find(x => x.controlIntensityR));
@@ -118,11 +134,13 @@ namespace TakoLib.Urp.PostProcess
         public override void OnInspectorGUI()
         {
             PropertyField(_intensity);
+            PropertyField(_rounded);
 
             PropertyField(_blurIntensity);
-            PropertyField(_blurScale);
+            if (1 < _blurDimention.value.intValue) PropertyField(_blurScale);
             PropertyField(_sampleCount);
-            PropertyField(_downSampleFactor);
+            if ((MovieControlMode)_controlMode.value.enumValueIndex == MovieControlMode.None) PropertyField(_downSampleFactor);
+            PropertyField(_blurDimention);
 
             PropertyField(_controlMode);
             switch ((MovieControlMode)_controlMode.value.enumValueIndex)
@@ -133,7 +151,6 @@ namespace TakoLib.Urp.PostProcess
                 case MovieControlMode.Fringe:
                     PropertyField(_center);
                     PropertyField(_smoothness);
-                    PropertyField(_rounded);
                     break;
                 case MovieControlMode.Texture:
                     PropertyField(_controlTextureRgb);
@@ -144,6 +161,7 @@ namespace TakoLib.Urp.PostProcess
             }
 
             PropertyField(_chromaticAberrationIntensity);
+            if ((MovieControlMode)_controlMode.value.enumValueIndex == MovieControlMode.None) PropertyField(_direction);
 
             PropertyField(_vignetteIntensity);
             PropertyField(_vignetteSmoothness);

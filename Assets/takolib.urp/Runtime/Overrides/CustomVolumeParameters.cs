@@ -11,22 +11,9 @@ namespace TakoLib.Urp.PostProcess
         Nega,
     }
 
-    public enum MovieControlMode
-    {
-        None,
-        Fringe,
-        Texture,
-    }
-
     [Serializable]
     public sealed class BlendModeParameter : VolumeParameter<BlendMode>
     {
         public BlendModeParameter(BlendMode value, bool overrideState = false) : base(value, overrideState) { }
-    }
-
-    [Serializable]
-    public sealed class MovieControlModeParameter : VolumeParameter<MovieControlMode>
-    {
-        public MovieControlModeParameter(MovieControlMode value, bool overrideState = false) : base(value, overrideState) { }
     }
 }

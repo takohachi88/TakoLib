@@ -54,6 +54,11 @@ namespace TakoLib.Urp
             public static readonly int ChromaticAberrationIntensity = Shader.PropertyToID("_ChromaticAberrationIntensity");
             public static readonly int ChromaticAberrationLimit = Shader.PropertyToID("_ChromaticAberrationLimit");
 
+            public static readonly int NegaIntensity = Shader.PropertyToID("_NegaIntensity");
+            public static readonly int Nega = Shader.PropertyToID("_Nega");
+
+            public static readonly int PosterizationIntensity = Shader.PropertyToID("_PosterizationIntensity");
+            public static readonly int ToneCount = Shader.PropertyToID("_ToneCount");
 
         }
 

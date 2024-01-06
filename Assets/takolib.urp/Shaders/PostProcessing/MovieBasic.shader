@@ -13,6 +13,7 @@ Shader "Hiddden/TakoLib/PostProcess/MovieBasic"
         HLSLINCLUDE
 
         #pragma multi_compile_local _CONTROL_MODE_NONE _CONTROL_MODE_FRINGE _CONTROL_MODE_TEXTURE
+        #pragma multi_compile_local _ _VIGNETTE
 
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
         #include "Packages/com.unity.render-pipelines.core/Runtime/Utilities/Blit.hlsl"
@@ -20,6 +21,7 @@ Shader "Hiddden/TakoLib/PostProcess/MovieBasic"
 
         half _Intensity;
         half _BlurIntensity;
+        float2 _BlurScale;
         half _ChromaticAberrationIntensity;
         half _VignetteIntensity;
         half _VignetteSmoothness;
@@ -33,7 +35,7 @@ Shader "Hiddden/TakoLib/PostProcess/MovieBasic"
 
         half3 _ControlIntensity; //R:intensity, GB: direction
 
-        half4 _VignetteColor;
+        half3 _VignetteColor;
         float2 _BlurDirection;
 
         TEXTURE2D_X(_ControlTexture);
@@ -104,6 +106,7 @@ Shader "Hiddden/TakoLib/PostProcess/MovieBasic"
             half rcpSampleCount = rcp(_SampleCount);
             half random = InterleavedGradientNoise(positionCS.xy, 0);
             direction.y *= _AspectRatio;
+            direction *= _BlurScale;
             half control = Control(uv, _Intensity * _BlurIntensity).x;
             half2 range = control.r * direction;
 
@@ -119,17 +122,9 @@ Shader "Hiddden/TakoLib/PostProcess/MovieBasic"
             return output;
         }
 
-        half4 FragmentBlur (Varyings input) : SV_Target
+        half4 Vignette (Varyings input, half4 destination)
         {
-            return Blur(input.texcoord, input.positionCS.xy, _BlurDirection);
-        }
-
-
-        half4 FragmentVignette (Varyings input) : SV_Target
-        {
-            half4 output = 0;
-
-            output += SAMPLE_TEXTURE2D(_BlitTexture, sampler_LinearClamp, input.texcoord);
+            half4 output = destination;
 
             float2 dist = abs(input.texcoord - _Center) * _VignetteIntensity * _Intensity;
             dist.x *= _Rounded ? _AspectRatio : 1;
@@ -145,6 +140,25 @@ Shader "Hiddden/TakoLib/PostProcess/MovieBasic"
 
             return output;
         }
+
+        half4 FragmentBlur (Varyings input) : SV_Target
+        {
+            half4 output = Blur(input.texcoord, input.positionCS.xy, _BlurDirection);
+
+            #if defined(_VIGNETTE)
+            output = Vignette(input, output);
+            #endif
+
+            return output;
+        }
+
+        half4 FragmentVignette (Varyings input) : SV_Target
+        {
+            half4 output = SAMPLE_TEXTURE2D_X(_BlitTexture, sampler_LinearClamp, input.texcoord);
+            output = Vignette(input, output);
+            return output;
+        }
+
 
         ENDHLSL
 
@@ -173,7 +187,7 @@ Shader "Hiddden/TakoLib/PostProcess/MovieBasic"
         }
 
         Pass
-        {            
+        {
             Name "Vignette"
 
             HLSLPROGRAM
@@ -183,6 +197,5 @@ Shader "Hiddden/TakoLib/PostProcess/MovieBasic"
 
             ENDHLSL
         }
-
     }
 }

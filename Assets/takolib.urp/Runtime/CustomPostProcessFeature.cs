@@ -96,8 +96,10 @@ namespace TakoLib.Urp.PostProcess
             BokehDof bokehDof = stack.GetComponent<BokehDof>();
             SmartDof smartDof = stack.GetComponent<SmartDof>();
             RadialBlur radialBlur = stack.GetComponent<RadialBlur>();
-            AdvancedVignette advancedVignette = stack.GetComponent<AdvancedVignette>();
             MovieBasic movieBasic = stack.GetComponent<MovieBasic>();
+            Posterization posterization = stack.GetComponent<Posterization>();
+            Nega nega = stack.GetComponent<Nega>();
+            AdvancedVignette advancedVignette = stack.GetComponent<AdvancedVignette>();
 
             if (bokehDof.IsActive())
             {
@@ -163,7 +165,7 @@ namespace TakoLib.Urp.PostProcess
                 }
             }
 
-            if (advancedVignette.IsActive())
+            if (posterization.IsActive() || nega.IsActive() || advancedVignette.IsActive())
             {
                 using (new ProfilingScope(cmd, _uberSampler))
                 {

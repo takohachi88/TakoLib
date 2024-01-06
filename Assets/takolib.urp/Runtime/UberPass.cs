@@ -1,3 +1,4 @@
+using TakoLib.Common.Extensions;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -20,14 +21,31 @@ namespace TakoLib.Urp.PostProcess
         }
         private void DoUber()
         {
+            Posterization posterization = _volumeStack.GetComponent<Posterization>();
+            Nega nega = _volumeStack.GetComponent<Nega>();
             AdvancedVignette advancedVignette = _volumeStack.GetComponent<AdvancedVignette>();
 
-            bool useVignette = advancedVignette || advancedVignette.IsActive();
+            bool usePosterization = posterization && posterization.IsActive();
+            bool useNega = nega && nega.IsActive();
+            bool useVignette = advancedVignette && advancedVignette.IsActive();
+            
             _cmd.SetKeyword(_material, keywordVignette, useVignette);
+
+            _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.Nega, useNega.ToInt());
+            
+            if (usePosterization)
+            {
+                _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.PosterizationIntensity, posterization.intensity.value);
+                _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.ToneCount, posterization.toneCount.value);
+            }
+            if (useNega)
+            {
+                _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.NegaIntensity, nega.intensity.value);
+            }
             if (useVignette)
             {
                 _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.VignetteIntensity, advancedVignette.intensity.value * 3f);
-                _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.Smoothness, advancedVignette.smoothness.value * 5f);
+                _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.VignetteSmoothness, advancedVignette.smoothness.value * 5f);
                 _cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.Rounded, advancedVignette.rounded.value ? 1 : 0);
                 _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.VignetteColor, advancedVignette.color.value);
                 _cmd.SetGlobalVector(TakoLibUrpCommon.ShaderId.VignetteCenter, advancedVignette.center.value);
