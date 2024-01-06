@@ -41,12 +41,12 @@ Shader "Hiddden/TakoLib/PostProcess/MovieBasic"
 
         half3 Control(float2 uv, half intensity)
         {
-            half3 output = _ControlIntensity;
+            half3 output = 0;
 
             #if defined(_CONTROL_MODE_NONE)
             
-            output.r *= intensity;
-            output.gb *= _Direction * intensity;
+            output.r = intensity;
+            output.gb = _Direction * intensity;
             
             #elif defined(_CONTROL_MODE_FRINGE)
 
