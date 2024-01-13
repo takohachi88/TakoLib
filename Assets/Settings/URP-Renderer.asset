@@ -48,8 +48,8 @@ MonoBehaviour:
   m_Name: CustomPostProcessFeature
   m_EditorClassIdentifier: 
   m_Active: 1
-  renderPassEvent: 550
-  data: {fileID: 11400000, guid: 337cc3d0472a90f4f96ed0e72308a8aa, type: 2}
+  _renderPassEvent: 550
+  _data: {fileID: 11400000, guid: 337cc3d0472a90f4f96ed0e72308a8aa, type: 2}
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0

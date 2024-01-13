@@ -51,6 +51,12 @@ namespace TakoLib.Urp.PostProcess
 
             [Reload("Shaders/PostProcessing/Uber.shader")]
             public Shader uber;
+
+            [Reload("Shaders/PostProcessing/Painting.shader")]
+            public Shader painting;
+
+            [Reload("Shaders/PostProcessing/Diffusion.shader")]
+            public Shader diffusion;
         }
 
         public CustomPostProcessResources resources;

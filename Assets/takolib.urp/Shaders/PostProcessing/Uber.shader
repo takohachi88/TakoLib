@@ -16,6 +16,9 @@ Shader "Hiddden/TakoLib/PostProcess/Uber"
         float _AspectRatio;
         int _BlendMode;
 
+        half _MosaicIntensity;
+        half _MosaicCellDensity;
+
         half _PosterizationIntensity;
         int _ToneCount;
 
@@ -43,14 +46,26 @@ Shader "Hiddden/TakoLib/PostProcess/Uber"
 
         half4 Fragment (Varyings input) : SV_Target
         {
-            half4 output = SAMPLE_TEXTURE2D(_BlitTexture, sampler_LinearClamp, input.texcoord);
+            float2 uv = input.texcoord;
+
+            if(0 < _MosaicIntensity)
+            {
+                float cellDensity = lerp(_ScreenParams.x, _MosaicCellDensity, _MosaicIntensity);
+                uv -= 0.5;
+                uv.x *= _AspectRatio;
+                uv = round(uv * cellDensity) * rcp(cellDensity);
+                uv.x *= rcp(_AspectRatio);
+                uv += 0.5;
+            }
+
+            half4 output = SAMPLE_TEXTURE2D(_BlitTexture, sampler_LinearClamp, uv);
 
             if(0 < _PosterizationIntensity)
             {
                 output.rgb = lerp(output.rgb, round(output.rgb * _ToneCount) * rcp(_ToneCount), _PosterizationIntensity);
             }
 
-            if(_Nega) output.rgb = lerp(output.rgb, 1 - output.rgb, _NegaIntensity);
+            if(_Nega) output.rgb = lerp(output.rgb, (1 - output.rgb), _NegaIntensity);
 
             #if defined(_VIGNETTE)
 

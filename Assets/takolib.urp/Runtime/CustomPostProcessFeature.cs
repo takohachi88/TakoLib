@@ -9,25 +9,27 @@ namespace TakoLib.Urp.PostProcess
 {
     public class CustomPostProcessFeature : ScriptableRendererFeature
     {
-        [SerializeField] private RenderPassEvent renderPassEvent = RenderPassEvent.BeforeRenderingPostProcessing;
+        [SerializeField] private RenderPassEvent _renderPassEvent = RenderPassEvent.BeforeRenderingPostProcessing;
 
-        [SerializeField] private CustomPostProcessData data;
+        [SerializeField] private CustomPostProcessData _data;
 
-        private CustomPostProcessPass pass;
-
+        private CustomPostProcessPass _pass;
 
         public override void Create()
         {
-            pass = new CustomPostProcessPass(data);
-            pass.renderPassEvent = renderPassEvent;
+            if (!_data) return;
+            _pass = new CustomPostProcessPass(_data);
+            _pass.renderPassEvent = _renderPassEvent;
         }
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
-            renderer.EnqueuePass(pass);
+            VolumeStack stack = VolumeManager.instance.stack;
+            if (!_data || stack == null) return;
+            _pass.Setup(stack);
+            renderer.EnqueuePass(_pass);
         }
     }
-
 
     public class CustomPostProcessPass : ScriptableRenderPass
     {
@@ -39,6 +41,9 @@ namespace TakoLib.Urp.PostProcess
         private RadialBlurPass _radialBlurPass;
         private MovieBasicPass _movieBasicPass;
         private UberPass _uberPass;
+        private PaintingPass _paintingPass;
+        private DiffusionPass _diffusionPass;
+
         private MaterialLibrary _materialLibrary;
 
         private CustomPostProcessData _data;
@@ -48,8 +53,16 @@ namespace TakoLib.Urp.PostProcess
         private static ProfilingSampler _radialBlurSampler = new ProfilingSampler(nameof(RadialBlur));
         private static ProfilingSampler _movieBasicSampler = new ProfilingSampler(nameof(MovieBasic));
         private static ProfilingSampler _uberSampler = new ProfilingSampler("UberEffect");
+        private static ProfilingSampler _paintingSampler = new ProfilingSampler(nameof(Painting));
+        private static ProfilingSampler _diffusionSampler = new ProfilingSampler(nameof(Diffusion));
 
         private bool destinationIsCameraColor = false;
+        private VolumeStack _volumeStack;
+
+        public void Setup(VolumeStack stack)
+        {
+            _volumeStack = stack;
+        }
 
         public CustomPostProcessPass(CustomPostProcessData data)
         {
@@ -62,6 +75,8 @@ namespace TakoLib.Urp.PostProcess
             _radialBlurPass = new RadialBlurPass(_data, _materialLibrary.radialBlur);
             _movieBasicPass = new MovieBasicPass(_data, _materialLibrary.movieBasic);
             _uberPass = new UberPass(_data, _materialLibrary.uber);
+            _paintingPass = new PaintingPass(_data, _materialLibrary.painting);
+            _diffusionPass = new DiffusionPass(_data, _materialLibrary.diffusion);
         }
 
         public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
@@ -90,16 +105,18 @@ namespace TakoLib.Urp.PostProcess
             float aspectRatio = _descriptor.width / (float)_descriptor.height;
             cmd.SetGlobalFloat(TakoLibUrpCommon.ShaderId.AspectRatio, aspectRatio);
 
-            VolumeStack stack = VolumeManager.instance.stack;
             //こことそれぞれのExecute内で計2回GetComponentしてしまうのを何とかしたい気持ちに駆られそうになるが、
             //VolumeStackのGetComponentの中身はdictionaryのTryGetValueなので十分軽くあまり問題ない。
-            BokehDof bokehDof = stack.GetComponent<BokehDof>();
-            SmartDof smartDof = stack.GetComponent<SmartDof>();
-            RadialBlur radialBlur = stack.GetComponent<RadialBlur>();
-            MovieBasic movieBasic = stack.GetComponent<MovieBasic>();
-            Posterization posterization = stack.GetComponent<Posterization>();
-            Nega nega = stack.GetComponent<Nega>();
-            AdvancedVignette advancedVignette = stack.GetComponent<AdvancedVignette>();
+            BokehDof bokehDof = _volumeStack.GetComponent<BokehDof>();
+            SmartDof smartDof = _volumeStack.GetComponent<SmartDof>();
+            RadialBlur radialBlur = _volumeStack.GetComponent<RadialBlur>();
+            MovieBasic movieBasic = _volumeStack.GetComponent<MovieBasic>();
+            Mosaic mosaic = _volumeStack.GetComponent<Mosaic>();
+            Posterization posterization = _volumeStack.GetComponent<Posterization>();
+            Nega nega = _volumeStack.GetComponent<Nega>();
+            AdvancedVignette advancedVignette = _volumeStack.GetComponent<AdvancedVignette>();
+            Painting painting = _volumeStack.GetComponent<Painting>();
+            Diffusion diffusion = _volumeStack.GetComponent<Diffusion>();
 
             if (bokehDof.IsActive())
             {
@@ -107,7 +124,7 @@ namespace TakoLib.Urp.PostProcess
                 {
                     PostProcessParams parameters = new()
                     {
-                        volumeStack = stack,
+                        volumeStack = _volumeStack,
                         cmd = cmd,
                         source = source,
                         destination = _destination,
@@ -123,7 +140,7 @@ namespace TakoLib.Urp.PostProcess
                 {
                     PostProcessParams parameters = new()
                     {
-                        volumeStack = stack,
+                        volumeStack = _volumeStack,
                         cmd = cmd,
                         source = source,
                         destination = _destination,
@@ -140,7 +157,7 @@ namespace TakoLib.Urp.PostProcess
                 {
                     PostProcessParams parameters = new()
                     {
-                        volumeStack = stack,
+                        volumeStack = _volumeStack,
                         cmd = cmd,
                         source = source,
                         destination = _destination,
@@ -155,7 +172,7 @@ namespace TakoLib.Urp.PostProcess
                 {
                     PostProcessParams parameters = new()
                     {
-                        volumeStack = stack,
+                        volumeStack = _volumeStack,
                         cmd = cmd,
                         source = source,
                         destination = _destination,
@@ -165,18 +182,50 @@ namespace TakoLib.Urp.PostProcess
                 }
             }
 
-            if (posterization.IsActive() || nega.IsActive() || advancedVignette.IsActive())
+            if (mosaic.IsActive() || posterization.IsActive() || nega.IsActive() || advancedVignette.IsActive())
             {
                 using (new ProfilingScope(cmd, _uberSampler))
                 {
                     PostProcessParams parameters = new()
                     {
-                        volumeStack = stack,
+                        volumeStack = _volumeStack,
                         cmd = cmd,
                         source = source,
                         destination = _destination,
                     };
                     if (_uberPass.Execute(ref parameters)) Swap(ref source, ref _destination);
+                }
+            }
+
+            if (painting.IsActive())
+            {
+                using (new ProfilingScope(cmd, _paintingSampler))
+                {
+                    PostProcessParams parameters = new()
+                    {
+                        volumeStack = _volumeStack,
+                        cmd = cmd,
+                        source = source,
+                        destination = _destination,
+                        descriptor = _descriptor,
+                    };
+                    if (_paintingPass.Execute(ref parameters)) Swap(ref source, ref _destination);
+                }
+            }
+
+            if (diffusion.IsActive())
+            {
+                using (new ProfilingScope(cmd, _diffusionSampler))
+                {
+                    PostProcessParams parameters = new()
+                    {
+                        volumeStack = _volumeStack,
+                        cmd = cmd,
+                        source = source,
+                        destination = _destination,
+                        descriptor = _descriptor,
+                    };
+                    if (_diffusionPass.Execute(ref parameters)) Swap(ref source, ref _destination);
                 }
             }
 
@@ -209,6 +258,8 @@ namespace TakoLib.Urp.PostProcess
             public readonly Material radialBlur;
             public readonly Material movieBasic;
             public readonly Material uber;
+            public readonly Material painting;
+            public readonly Material diffusion;
 
             public MaterialLibrary(CustomPostProcessData.CustomPostProcessResources resources)
             {
@@ -218,6 +269,8 @@ namespace TakoLib.Urp.PostProcess
                 radialBlur = Load(resources.radialBlur);
                 movieBasic = Load(resources.movieBasic);
                 uber = Load(resources.uber);
+                painting = Load(resources.painting);
+                diffusion = Load(resources.diffusion);
             }
 
             private Material Load(Shader shader)
@@ -238,6 +291,8 @@ namespace TakoLib.Urp.PostProcess
                 CoreUtils.Destroy(radialBlur);
                 CoreUtils.Destroy(movieBasic);
                 CoreUtils.Destroy(uber);
+                CoreUtils.Destroy(painting);
+                CoreUtils.Destroy(diffusion);
             }
         }
     }

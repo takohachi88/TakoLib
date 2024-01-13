@@ -60,6 +60,14 @@ namespace TakoLib.Urp
             public static readonly int PosterizationIntensity = Shader.PropertyToID("_PosterizationIntensity");
             public static readonly int ToneCount = Shader.PropertyToID("_ToneCount");
 
+            public static readonly int MosaicIntensity = Shader.PropertyToID("_MosaicIntensity");
+            public static readonly int MosaicCellDensity = Shader.PropertyToID("_MosaicCellDensity");
+
+            public static readonly int Radius = Shader.PropertyToID("_Radius");
+
+            public static readonly int DiffusionMipTexture = Shader.PropertyToID("_DiffusionMipTexture");
+            public static readonly int DiffusionTexture = Shader.PropertyToID("_DiffusionTexture");
+            public static readonly int Threshold = Shader.PropertyToID("_Threshold");
         }
 
         public static class Keyword
