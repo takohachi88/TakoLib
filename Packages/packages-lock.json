@@ -85,6 +85,15 @@
       },
       "url": "https://packages.unity.com"
     },
+    "com.unity.recorder": {
+      "version": "4.0.2",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.timeline": "1.0.0"
+      },
+      "url": "https://packages.unity.com"
+    },
     "com.unity.render-pipelines.core": {
       "version": "14.0.7",
       "depth": 1,
@@ -175,21 +184,19 @@
       "url": "https://packages.unity.com"
     },
     "takolib.common": {
-      "version": "https://github.com/takohachi88/TakoLib.git?path=Assets/takolib.common",
+      "version": "file:takolib.common",
       "depth": 0,
-      "source": "git",
-      "dependencies": {},
-      "hash": "117a1dd4c19140a330b3ccbd6e3cc93d6630d769"
+      "source": "embedded",
+      "dependencies": {}
     },
     "takolib.urp": {
-      "version": "https://github.com/takohachi88/TakoLib.git?path=Assets/takolib.urp",
+      "version": "file:takolib.urp",
       "depth": 0,
-      "source": "git",
+      "source": "embedded",
       "dependencies": {
-        "com.unity.render-pipelines.universal": "13.0.0",
-        "takolib.common": "https://github.com/takohachi88/TakoLib.git?path=Assets/takolib.common"
-      },
-      "hash": "117a1dd4c19140a330b3ccbd6e3cc93d6630d769"
+        "com.unity.render-pipelines.universal": "14.0.0",
+        "takolib.common": "0.0.1"
+      }
     },
     "com.unity.modules.ai": {
       "version": "1.0.0",

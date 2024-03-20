@@ -18,5 +18,6 @@ MonoBehaviour:
     radialBlur: {fileID: 4800000, guid: ef0758a5f433e9b438f31030777622ce, type: 3}
     movieBasic: {fileID: 4800000, guid: d9cc5431d7ba36d41a341ddcfe87e86c, type: 3}
     uber: {fileID: 4800000, guid: 1608a34fbf369bc48b87fec82bee283e, type: 3}
-    snn: {fileID: 4800000, guid: 11b90c3b4c25fa04d8e9d8da8176606b, type: 3}
+    painting: {fileID: 4800000, guid: 11b90c3b4c25fa04d8e9d8da8176606b, type: 3}
     diffusion: {fileID: 4800000, guid: 84e89ed813b9a3343be12dffbf57b9a0, type: 3}
+    temporalBlur: {fileID: 4800000, guid: 513cf00aa6e05d541a777045e9bf6854, type: 3}

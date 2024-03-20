@@ -69,7 +69,8 @@ MonoBehaviour:
   m_RendererFeatures:
   - {fileID: -1878332245247344467}
   - {fileID: -1810650863975531533}
-  m_RendererFeatureMap: adc0de57c6d2eee5f3fb7be8a146dfe6
+  - {fileID: 4562401824407501256}
+  m_RendererFeatureMap: adc0de57c6d2eee5f3fb7be8a146dfe6c839676249e8503f
   m_UseNativeRenderPass: 0
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   xrSystemData: {fileID: 11400000, guid: 60e1133243b97e347b653163a8c01b64, type: 2}
@@ -110,3 +111,52 @@ MonoBehaviour:
   m_CopyDepthMode: 0
   m_AccurateGbufferNormals: 0
   m_IntermediateTextureMode: 1
+--- !u!114 &4562401824407501256
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8aa3a82e5b908ef4dae8300ba05e8570, type: 3}
+  m_Name: FurFeature
+  m_EditorClassIdentifier: 
+  m_Active: 1
+  _shader: {fileID: 4800000, guid: cc159b7c308ea4a45ae7a44638ce65f6, type: 3}
+  _furParams:
+    SampleCount: 15
+    curve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 17.67977
+        outSlope: 17.67977
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0.109382175
+      - serializedVersion: 3
+        time: 0.096346974
+        value: 0.7385277
+        inSlope: 0.8946757
+        outSlope: 0.8946757
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0.33333334
+        outWeight: 0.057948098
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
