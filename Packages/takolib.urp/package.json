@@ -1,0 +1,16 @@
+{
+  "name": "takolib.urp",
+  "displayName": "TakoLib URP",
+  "version": "0.0.1",
+  "unity": "2022.3",
+  "dependencies": {
+    "com.unity.render-pipelines.universal": "14.0.0",
+    "takolib.common": "0.0.1"
+  },
+  "changelogUrl": "https://github.com/takohachi88/TakoLib/releases",
+  "author": "takohachi",
+  "keywords": [
+    "URP"
+  ],
+  "description": "TakoLib library for URP"
+}
