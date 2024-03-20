@@ -80,4 +80,5 @@ Shader "Custom/#NAME#"
             ENDHLSL
         }
     }
+    CustomEditor "TakoLib.Common.Editor.TakoLibShaderGui"
 }
