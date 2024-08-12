@@ -1,4 +1,4 @@
-using TakoLib.Common.Editor;
+using TakoLibEditor.Common;
 using UnityEditor;
 
 namespace TakoLib.Urp

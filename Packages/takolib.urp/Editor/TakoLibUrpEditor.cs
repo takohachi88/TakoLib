@@ -1,8 +1,8 @@
-using TakoLib.Common.Editor;
+using TakoLibEditor.Common;
 
 namespace TakoLib.Urp.Editor
 {
-    public static class TakoLibUrpEditor
+    public static class TakoLibUrpEditorUtility
     {
 
     }

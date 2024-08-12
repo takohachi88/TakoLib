@@ -1,11 +1,10 @@
-using System;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
 
-namespace TakoLib.Common.Editor
+namespace TakoLibEditor.Common
 {
-    public static class TakoLibEditor
+    public static class TakoLibEditorUtility
     {
         /// <summary>
         /// 型Tのスクリプトファイルのパスを取得する。

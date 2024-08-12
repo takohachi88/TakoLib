@@ -2,7 +2,7 @@ using System;
 using UnityEditor;
 using UnityEngine;
 
-namespace TakoLib.Common.Editor
+namespace TakoLibEditor.Common
 {
     public class TakoLibShaderGui : ShaderGUI
     {
@@ -22,7 +22,7 @@ namespace TakoLib.Common.Editor
             {
                 using (new EditorGUILayout.VerticalScope(GUI.skin.box))
                 {
-                    EditorGUILayout.LabelField(HeaderText, TakoLibEditor.StyleRichTextWrapLabel);
+                    EditorGUILayout.LabelField(HeaderText, TakoLibEditorUtility.StyleRichTextWrapLabel);
                 }
             }
 

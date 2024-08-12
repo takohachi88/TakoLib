@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
-namespace TakoLib.Common.Editor
+namespace TakoLibEditor.Common
 {
     /// <summary>
     /// Createメニューに項目を追加する。
@@ -43,7 +43,7 @@ namespace TakoLib.Common.Editor
         /// このC#スクリプトファイルがあるディレクトリを取得する。
         /// </summary>
         /// <returns>このC#スクリプトファイルのディレクトリ</returns>
-        private static string GetFilePath() => TakoLibEditor.GetScriptFilePath<T>();
+        private static string GetFilePath() => TakoLibEditorUtility.GetScriptFilePath<T>();
 
 
         /// <summary>

@@ -3,7 +3,7 @@ using UnityEditor;
 using System.Linq;
 using UnityEngine.Rendering;
 
-namespace TakoLib.Common.Editor
+namespace TakoLibEditor.Common
 {
     public static class TakoLibShaderGuiUtility
     {
