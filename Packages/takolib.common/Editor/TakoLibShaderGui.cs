@@ -1,6 +1,7 @@
 using System;
 using UnityEditor;
 using UnityEngine;
+using TakoLib.Common;
 
 namespace TakoLibEditor.Common
 {
@@ -46,6 +47,9 @@ namespace TakoLibEditor.Common
 
         protected virtual void BasicGui(MaterialEditor materialEditor, MaterialProperty[] properties)
         {
+            Material material = materialEditor.target as Material;
+            ColorBlendGui(material);
+
             EditorGUILayout.HelpBox("No custom GUI implemented", MessageType.Info);
             base.OnGUI(materialEditor, properties);
         }
@@ -66,6 +70,21 @@ namespace TakoLibEditor.Common
             TakoLibShaderGuiUtility.DrawPassTable(materialEditor, material);
             EditorGUILayout.Space();
             TakoLibShaderGuiUtility.DrawKeywordTable(materialEditor, material);
+        }
+
+        protected void ColorBlendGui(Material material)
+        {
+            if (ColorBlend.HasAlphaBlendRequiredProperties(material))
+            {
+                AlphaBlendMode blendMode = (AlphaBlendMode)EditorGUILayout.EnumPopup("AlphaBlend", (AlphaBlendMode)material.GetFloat(ColorBlend.IdAlphaBlend));
+                ColorBlend.SetAlphaBlendMode(material, blendMode);
+            }
+
+            if (ColorBlend.HasVertexColorBlendRequiredProperties(material))
+            {
+                VertexColorBlendMode blendMode = (VertexColorBlendMode)EditorGUILayout.EnumPopup("VertexColorBlend", (VertexColorBlendMode)material.GetFloat(ColorBlend.IdVertexColorBlend));
+                ColorBlend.SetVertexColorBlendMode(material, blendMode);
+            }
         }
     }
 }
