@@ -74,16 +74,16 @@ namespace TakoLibEditor.Common
 
         protected void ColorBlendGui(Material material)
         {
-            if (ColorBlend.HasAlphaBlendRequiredProperties(material))
+            if (ShaderUtility.HasAlphaBlendRequiredProperties(material))
             {
-                AlphaBlendMode blendMode = (AlphaBlendMode)EditorGUILayout.EnumPopup("AlphaBlend", (AlphaBlendMode)material.GetFloat(ColorBlend.IdAlphaBlend));
-                ColorBlend.SetAlphaBlendMode(material, blendMode);
+                AlphaBlendMode blendMode = (AlphaBlendMode)EditorGUILayout.EnumPopup("AlphaBlend", (AlphaBlendMode)material.GetFloat(ShaderUtility.IdAlphaBlend));
+                ShaderUtility.SetAlphaBlendMode(material, blendMode, true);
             }
 
-            if (ColorBlend.HasVertexColorBlendRequiredProperties(material))
+            if (ShaderUtility.HasVertexColorBlendRequiredProperties(material))
             {
-                VertexColorBlendMode blendMode = (VertexColorBlendMode)EditorGUILayout.EnumPopup("VertexColorBlend", (VertexColorBlendMode)material.GetFloat(ColorBlend.IdVertexColorBlend));
-                ColorBlend.SetVertexColorBlendMode(material, blendMode);
+                VertexColorBlendMode blendMode = (VertexColorBlendMode)EditorGUILayout.EnumPopup("VertexColorBlend", (VertexColorBlendMode)material.GetFloat(ShaderUtility.IdVertexColorBlend));
+                ShaderUtility.SetVertexColorBlendMode(material, blendMode);
             }
         }
     }
