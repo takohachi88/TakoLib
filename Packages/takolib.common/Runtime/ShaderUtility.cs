@@ -7,7 +7,7 @@ namespace TakoLib.Common
     public enum AlphaBlendMode
     {
         Custom,
-        Opqaue,
+        Opaque,
         AlphaTest,
         Transparent,
         Additive,
@@ -55,7 +55,7 @@ namespace TakoLib.Common
             switch (mode)
             {
                 case AlphaBlendMode.Custom: return;
-                case AlphaBlendMode.Opqaue: SetAlphaBlendMode(material, BlendMode.One, BlendMode.Zero, false, BlendOp.Add); break;
+                case AlphaBlendMode.Opaque: SetAlphaBlendMode(material, BlendMode.One, BlendMode.Zero, false, BlendOp.Add); break;
                 case AlphaBlendMode.AlphaTest: SetAlphaBlendMode(material, BlendMode.One, BlendMode.Zero, false, BlendOp.Add); break;
                 case AlphaBlendMode.Transparent: SetAlphaBlendMode(material, BlendMode.One, BlendMode.OneMinusSrcAlpha, true, BlendOp.Add); break;
                 case AlphaBlendMode.Additive: SetAlphaBlendMode(material, BlendMode.SrcAlpha, BlendMode.One, false, BlendOp.Add); break;
@@ -84,7 +84,7 @@ namespace TakoLib.Common
         private static void ValidateByAlphaBlendMode(Material material, AlphaBlendMode mode)
         {
             if (mode == AlphaBlendMode.Custom) return;
-            else if (mode == AlphaBlendMode.Opqaue)
+            else if (mode == AlphaBlendMode.Opaque)
             {
                 material.renderQueue = (int)RenderQueue.Geometry;
                 material.SetFloat(IdZWrite, 1);
