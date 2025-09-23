@@ -22,7 +22,7 @@ namespace TakoLibEditor.Common
         /// <summary>
         /// Createメニューの階層（C#）。
         /// </summary>
-        protected const string MenuItemCsRoot = "Assets/Create/Custom C# Scripts/";
+        protected const string MenuItemCsRoot = "Assets/Create/Scripting/";
 
         protected enum FileType
         {
