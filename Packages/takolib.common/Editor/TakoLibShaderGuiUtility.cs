@@ -7,66 +7,79 @@ namespace TakoLibEditor.Common
 {
     public static class TakoLibShaderGuiUtility
     {
-        private static Color tableColor = new Color(0, 0, 0, 0.2f);
-        private static Color tableOutlineColor = Color.gray;
-        private static float tableIndent = 5;
-        private static float textIndentInTable = 5;
-        private static ShaderTagId lightModeTag = new ShaderTagId("LightMode");
+        private static readonly Color TableColor = new (0, 0, 0, 0.2f);
+        private static readonly Color TableOutlineColor = Color.gray;
+        private static readonly float TableIndent = 5;
+        private static readonly float TextIndentInTable = 3;
+        private static readonly ShaderTagId LightModeTag = new("LightMode");
 
         public static void DrawPassTable(MaterialEditor materialEditor, Material material)
         {
-
             int passCount = material.passCount;
             float height = 17;
-            float indexWidth = 28;
+            float indexWidth = 24;
+            float enabledWidth = 24;
 
             EditorGUILayout.LabelField($"Passes : {passCount}");
 
             Rect tableRect = GUILayoutUtility.GetRect(0, (passCount + 1) * height);
-            tableRect.x += tableIndent;
-            Handles.DrawSolidRectangleWithOutline(tableRect, tableColor, tableOutlineColor);
+            tableRect.x += TableIndent;
+            Handles.DrawSolidRectangleWithOutline(tableRect, TableColor, TableOutlineColor);
 
-            float nameWidth = (tableRect.width - indexWidth) * 0.5f;
+            float nameWidth = (tableRect.width - indexWidth - enabledWidth) * 0.5f;
             float tagWidth = nameWidth;
 
             Rect contentRect = tableRect;
             contentRect.height = height;
-            contentRect.x += textIndentInTable;
+            contentRect.x += TextIndentInTable;
 
             Color defaultColor = Handles.color;
-            Handles.color = tableOutlineColor;
+            Handles.color = TableOutlineColor;
             float linePositionX = tableRect.x + indexWidth;
-            Handles.DrawLine(new Vector3(linePositionX, contentRect.y), new Vector3(linePositionX, contentRect.y + tableRect.height));
+            //縦線
+            float lineScreenSpace = 50f / tableRect.height;
+            Handles.DrawDottedLine(new(linePositionX, contentRect.y), new(linePositionX, contentRect.y + tableRect.height), lineScreenSpace);
+            linePositionX += enabledWidth;
+            Handles.DrawDottedLine(new(linePositionX, contentRect.y), new(linePositionX, contentRect.y + tableRect.height), lineScreenSpace);
             linePositionX += nameWidth;
-            Handles.DrawLine(new Vector3(linePositionX, contentRect.y), new Vector3(linePositionX, contentRect.y + tableRect.height));
+            Handles.DrawDottedLine(new(linePositionX, contentRect.y), new(linePositionX, contentRect.y + tableRect.height), lineScreenSpace);
             linePositionX += tagWidth;
-            Handles.DrawLine(new Vector3(linePositionX, contentRect.y), new Vector3(linePositionX, contentRect.y + tableRect.height));
+            Handles.DrawDottedLine(new(linePositionX, contentRect.y), new(linePositionX, contentRect.y + tableRect.height), lineScreenSpace);
 
-
-            void DrawRow(string indexLabel, string nameLabel, string tagLabel)
+            void DrawRow(string indexLabel, ref bool? enabled, string nameLabel, string tagLabel)
             {
                 Rect tempRect = contentRect;
-                tempRect.x += textIndentInTable;
+                tempRect.x += TextIndentInTable;
                 tempRect.width = indexWidth;
                 EditorGUI.LabelField(tempRect, indexLabel);
 
                 tempRect.x += indexWidth;
-                tempRect.width = nameWidth - textIndentInTable * 2f;
+                tempRect.width = enabledWidth;
+                if (enabled.HasValue) enabled = EditorGUI.Toggle(tempRect, enabled.Value);
+
+                tempRect.x += indexWidth;
+                tempRect.width = nameWidth - TextIndentInTable * 2f;
                 EditorGUI.LabelField(tempRect, nameLabel);
 
                 tempRect.x += nameWidth;
-                tempRect.width = tagWidth - textIndentInTable * 2f;
+                tempRect.width = tagWidth - TextIndentInTable * 2f;
                 EditorGUI.LabelField(tempRect, tagLabel);
             }
 
-            DrawRow(string.Empty, "Name", "LightMode");
+            bool? passEnabled = null;
+
+            DrawRow(string.Empty, ref passEnabled, "Name", "LightMode");
 
             contentRect.y += height;
-            Handles.DrawLine(new Vector3(tableRect.x, contentRect.y), new Vector3(tableRect.x + tableRect.width, contentRect.y));
+            //ヘッダー部分の横線。
+            Handles.DrawDottedLine(new(tableRect.x, contentRect.y), new(tableRect.x + tableRect.width, contentRect.y), 500f / tableRect.width);
 
             for (int i = 0; i < passCount; i++)
             {
-                DrawRow(i.ToString(), material.GetPassName(i), material.shader.FindPassTagValue(i, lightModeTag).name);
+                string passName = material.GetPassName(i);
+                passEnabled = material.GetShaderPassEnabled(passName);
+                DrawRow(i.ToString(), ref passEnabled, passName, material.shader.FindPassTagValue(i, LightModeTag).name);
+                material.SetShaderPassEnabled(passName, passEnabled.Value);
 
                 contentRect.y += height;
             }
@@ -88,15 +101,15 @@ namespace TakoLibEditor.Common
             };
 
             Rect tableRect = GUILayoutUtility.GetRect(0, keywordCount * height);
-            tableRect.x += tableIndent;
-            Handles.DrawSolidRectangleWithOutline(tableRect, tableColor, tableOutlineColor);
+            tableRect.x += TableIndent;
+            Handles.DrawSolidRectangleWithOutline(tableRect, TableColor, TableOutlineColor);
 
             Rect contentRect = tableRect;
             contentRect.height = height;
-            contentRect.x += textIndentInTable;
+            contentRect.x += TextIndentInTable;
 
             Color defaultColor = Handles.color;
-            Handles.color = tableOutlineColor;
+            Handles.color = TableOutlineColor;
 
             for (int i = 0; i < keywordCount; i++)
             {
@@ -106,6 +119,5 @@ namespace TakoLibEditor.Common
 
             Handles.color = defaultColor;
         }
-
     }
 }
