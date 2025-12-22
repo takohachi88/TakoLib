@@ -45,7 +45,7 @@ namespace TakoLibEditor.Common
 		[SerializeField] private TextureFormat _format = TextureFormat.RGBA32;
 		[SerializeField] private bool _linear = false;
 
-		public override void OnImportAsset(AssetImportContext ctx)
+		public override void OnImportAsset(AssetImportContext context)
 		{
 			if (_size.x <= 1 || _size.y <= 0 || _gradient == null) return;
 
@@ -62,8 +62,8 @@ namespace TakoLibEditor.Common
 			}
 			texture.Apply();
 
-			ctx.AddObjectToAsset("GT", texture);
-			ctx.SetMainObject(texture);
+			context.AddObjectToAsset("Gradient Texture", texture);
+			context.SetMainObject(texture);
 		}
 	}
 }
