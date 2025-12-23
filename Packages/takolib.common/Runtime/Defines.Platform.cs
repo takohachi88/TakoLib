@@ -1,6 +1,6 @@
 namespace TakoLib.Common
 {
-    public partial class Defines
+    public static partial class Defines
     {
         /// <summary>
         /// 各種プラットフォーム名。
