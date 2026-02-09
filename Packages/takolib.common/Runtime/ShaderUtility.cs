@@ -25,11 +25,6 @@ namespace TakoLib.Common
 
     public static class ShaderUtility
     {
-        public static readonly int IdDefault = Shader.PropertyToID("_IdDefault");
-        public static readonly int IdIn = Shader.PropertyToID("_IdIn");
-        public static readonly int IdIdle = Shader.PropertyToID("_IdIdle");
-        public static readonly int IdOut = Shader.PropertyToID("_IdOut");
-
         public static readonly int IdBlendSrc = Shader.PropertyToID("_BlendSrc");
         public static readonly int IdBlendDst = Shader.PropertyToID("_BlendDst");
         public static readonly int IdMultiplyRgbA = Shader.PropertyToID("_MultiplyRgbA");
