@@ -44,6 +44,7 @@ namespace TakoLibEditor.Common
 		[SerializeField, GradientUsage(true)]
 		private Gradient _gradient;
 		[SerializeField] private Vector2Int _size = new(16, 1);
+		[SerializeField] private bool _vertical = false;
 		[SerializeField] private TextureWrapMode _wrapMode = TextureWrapMode.Clamp;
 		[SerializeField] private FilterMode _filterMode = FilterMode.Bilinear;
 		[SerializeField] private TextureFormat _format = TextureFormat.RGBA32;
@@ -81,13 +82,14 @@ namespace TakoLibEditor.Common
 			{
 				for (int y = 0; y < _size.y; y++)
 				{
-					switch (_colorSpecifyMode)
+					float progress = _vertical ? (float)y / (_size.y - 1) : (float)x / (_size.x - 1);
+		            switch (_colorSpecifyMode)
 					{
 						case SpecifyMode.Gradient:
-							texture.SetPixel(x, y, _gradient.Evaluate((float)x / (_size.x - 1)));
+							texture.SetPixel(x, y, _gradient.Evaluate(progress));
 							break;
 						case SpecifyMode.Curve:
-							float curve = _curve.Evaluate((float)x / (_size.x - 1));
+							float curve = _curve.Evaluate(progress);
 							texture.SetPixel(x, y, new Color(curve, curve, curve, curve));
 							break;
 					}
@@ -130,6 +132,7 @@ namespace TakoLibEditor.Common
                         break;
 				}
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._size)));
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._vertical)));
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._wrapMode)));
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._filterMode)));
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._format)));
