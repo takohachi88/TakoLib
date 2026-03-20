@@ -53,8 +53,8 @@ namespace TakoLibEditor.Common
 
 		public override void OnImportAsset(AssetImportContext context)
 		{
-            _size.x = Mathf.Max(2, _size.x);
-            _size.y = Mathf.Max(2, _size.y);
+			_size.x = Mathf.Max(_vertical ? 1 : 2, _size.x);
+			_size.y = Mathf.Max(_vertical ? 2 : 1, _size.y);
 
 			if (_gradient == null)
 			{
