@@ -39,27 +39,41 @@ namespace TakoLibEditor.Common
 
 		[SerializeField] private SpecifyMode _colorSpecifyMode = SpecifyMode.Gradient;
 
-		[SerializeField] private AnimationCurve _curve = AnimationCurve.EaseInOut(0, 0, 1, 1);
+		[SerializeField] private AnimationCurve _curve;
+
 		[SerializeField, GradientUsage(true)]
-		private Gradient _gradient = new()
-		{
-			colorKeys = new GradientColorKey[]
-			{
-				new GradientColorKey(Color.red, 0f),
-				new GradientColorKey(Color.blue, 1f)
-			},
-		};
+		private Gradient _gradient;
 		[SerializeField] private Vector2Int _size = new(16, 1);
 		[SerializeField] private TextureWrapMode _wrapMode = TextureWrapMode.Clamp;
 		[SerializeField] private FilterMode _filterMode = FilterMode.Bilinear;
 		[SerializeField] private TextureFormat _format = TextureFormat.RGBA32;
 		[SerializeField] private bool _linear = false;
+		[SerializeField] private bool _sprite = false;
 
 		public override void OnImportAsset(AssetImportContext context)
 		{
-			if (_size.x <= 1 || _size.y <= 0 || _gradient == null) return;
+            _size.x = Mathf.Max(1, _size.x);
+            _size.y = Mathf.Max(1, _size.y);
+
+			if (_gradient == null)
+			{
+				_gradient = new()
+				{
+					colorKeys = new GradientColorKey[]
+					{
+						new GradientColorKey(Color.red, 0f),
+						new GradientColorKey(Color.blue, 1f)
+					},
+				};
+			}
+
+			if (_curve == null)
+			{
+				_curve = AnimationCurve.EaseInOut(0, 0, 1, 1);
+			}
 
 			Texture2D texture = new(_size.x, _size.y, _format, false, _linear);
+            texture.name = "Texture2D";
 			texture.wrapMode = _wrapMode;
 			texture.filterMode = _filterMode;
 
@@ -81,8 +95,18 @@ namespace TakoLibEditor.Common
 			}
 			texture.Apply();
 
-			context.AddObjectToAsset("Gradient Texture", texture);
-			context.SetMainObject(texture);
+			if (_sprite)
+			{
+                Sprite sprite = Sprite.Create(texture, new(0, 0, texture.width, texture.height), new(0.5f, 0.5f));
+                context.AddObjectToAsset("Sprite", sprite);
+                context.AddObjectToAsset("Texture", texture);//Texture本体の保持も必要。Spriteからはあくまで参照されているだけ。
+                context.SetMainObject(sprite);
+            }
+			else
+			{
+                context.AddObjectToAsset("Texture", texture);
+                context.SetMainObject(texture);
+            }
 		}
 
 		[CustomEditor(typeof(GradientTextureImporter))]
@@ -110,6 +134,7 @@ namespace TakoLibEditor.Common
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._filterMode)));
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._format)));
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._linear)));
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._sprite)));
 
                 ApplyRevertGUI();
             }
