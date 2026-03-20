@@ -15,10 +15,11 @@ namespace TakoLibEditor.Common
 	[ScriptedImporter(1, "gradienttexture")]
 	public class GradientTextureImporter : ScriptedImporter
 	{
-		[MenuItem("Assets/Create/2D/Gradient Texture", true)]
+		private const string MENU_PATH = "Assets/Create/2D/Gradient Texture";
+		[MenuItem(MENU_PATH, true)]
 		private static bool CreateAssetValidate() => AssetDatabase.IsValidFolder(AssetDatabase.GetAssetPath(Selection.activeObject));
 
-		[MenuItem("Assets/Create/2D/Gradient Texture")]
+		[MenuItem(MENU_PATH)]
 		private static void CreateAsset()
 		{
 			Texture2D texture = new(16, 1);
@@ -30,7 +31,16 @@ namespace TakoLibEditor.Common
 			AssetDatabase.Refresh();
 		}
 
-		[SerializeField]
+		private enum SpecifyMode
+		{
+			Curve,
+			Gradient,
+		}
+
+		[SerializeField] private SpecifyMode _colorSpecifyMode = SpecifyMode.Gradient;
+
+		[SerializeField] private AnimationCurve _curve = AnimationCurve.EaseInOut(0, 0, 1, 1);
+		[SerializeField, GradientUsage(true)]
 		private Gradient _gradient = new()
 		{
 			colorKeys = new GradientColorKey[]
@@ -57,13 +67,52 @@ namespace TakoLibEditor.Common
 			{
 				for (int y = 0; y < _size.y; y++)
 				{
-					texture.SetPixel(x, y, _gradient.Evaluate((float)x / (_size.x - 1)));
-				}
+					switch (_colorSpecifyMode)
+					{
+						case SpecifyMode.Gradient:
+							texture.SetPixel(x, y, _gradient.Evaluate((float)x / (_size.x - 1)));
+							break;
+						case SpecifyMode.Curve:
+							float curve = _curve.Evaluate((float)x / (_size.x - 1));
+							texture.SetPixel(x, y, new Color(curve, curve, curve, curve));
+							break;
+					}
+                }
 			}
 			texture.Apply();
 
 			context.AddObjectToAsset("Gradient Texture", texture);
 			context.SetMainObject(texture);
+		}
+
+		[CustomEditor(typeof(GradientTextureImporter))]
+		public class GradientTextureImporterEditor : ScriptedImporterEditor
+		{
+			private GradientTextureImporter _target;
+
+            public override void OnInspectorGUI()
+            {
+				_target = target as GradientTextureImporter;
+
+				EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._colorSpecifyMode)));
+
+				switch (_target._colorSpecifyMode)
+				{
+					case SpecifyMode.Gradient:
+                        EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._gradient)));
+                        break;
+					case SpecifyMode.Curve:
+                        EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._curve)));
+                        break;
+				}
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._size)));
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._wrapMode)));
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._filterMode)));
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._format)));
+                EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._linear)));
+
+                ApplyRevertGUI();
+            }
 		}
 	}
 }
