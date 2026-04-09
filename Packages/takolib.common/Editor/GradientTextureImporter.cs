@@ -140,6 +140,24 @@ namespace TakoLibEditor.Common
                 EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._sprite)));
 
                 ApplyRevertGUI();
+
+				EditorGUILayout.Space();
+
+				if (GUILayout.Button("画像としてエクスポート", GUILayout.Width(200), GUILayout.Height(20)))
+				{
+					string filePath = EditorUtility.SaveFilePanel("Export Gradient Texture", Application.dataPath, string.Empty, "png");
+					if (string.IsNullOrEmpty(filePath)) return;
+					string assetPath = filePath.Replace(Application.dataPath, "Assets");
+					Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(_target.assetPath);
+					if (!texture)
+					{
+						Debug.LogError("画像の読み込みに失敗しました。");
+						return;
+					}
+					File.WriteAllBytes(filePath, texture.EncodeToPNG());
+					AssetDatabase.Refresh();
+					Debug.Log($"エクスポートが完了しました。({filePath})");
+				}
             }
 		}
 	}
