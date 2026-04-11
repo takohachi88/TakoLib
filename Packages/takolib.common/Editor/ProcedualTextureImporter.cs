@@ -330,7 +330,7 @@ Shader ""Hidden/ProcedualTextureGenerated""
 		[SerializeField, TextArea(10, 15)] private string _shaderTemplate;
 
 		public string DefaultFileName => _defaultFileName;
-        public string ShaderTemplate => _shaderTemplate;
+		public string ShaderTemplate => string.IsNullOrEmpty(_shaderTemplate) ? SHADER_TEMPLATE : _shaderTemplate;
 
         public void RevertToDefault()
 		{
