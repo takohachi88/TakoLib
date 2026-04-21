@@ -11,7 +11,7 @@ using UnityEngine;
 namespace TakoLibEditor.Common
 {
 	/// <summary>
-	/// gradient textureをUnity上で作成する機能。
+	/// procedual textureをUnity上で作成する機能。
 	/// </summary>
 	[ScriptedImporter(1, "procedualtexture")]
 	public class ProcedualTextureImporter : ScriptedImporter
@@ -27,9 +27,9 @@ namespace TakoLibEditor.Common
 			texture.Apply();
 
 			string folderPath = AssetDatabase.GetAssetPath(Selection.activeObject);
-			string path = AssetDatabase.GenerateUniqueAssetPath($"{folderPath}/{ProcedualTextureImporterSettings.instance.DefaultFileName}.procedualtexture");
+			string path = AssetDatabase.GenerateUniqueAssetPath($"{folderPath}/procedual_.procedualtexture");
 			//名前を付けて保存する動作のため。
-            var endAction = ScriptableObject.CreateInstance<CreateGradientTextureAction>();
+            var endAction = ScriptableObject.CreateInstance<CreateProcedualTextureAction>();
 			ProjectWindowUtil.StartNameEditingIfProjectWindowExists(default, endAction, path, null, null);
 		}
 
@@ -50,8 +50,54 @@ namespace TakoLibEditor.Common
 		[SerializeField, GradientUsage(true)]
 		private Gradient _gradient;
 
+		private static readonly string DefaultShaderCode = @"Shader ""Hidden/TakoLib/ProcedualTexture""
+{
+    SubShader
+    {
+        Pass
+        {
+            ZTest Always Cull Off ZWrite Off
+
+            HLSLPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #include ""Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl""
+
+            float4x4 unity_MatrixVP;
+            float4x4 unity_ObjectToWorld;
+
+            struct Attributes
+            {
+                float4 positionOS : POSITION;
+                float2 uv : TEXCOORD0;
+            };
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float2 uv : TEXCOORD0;
+            };
+
+            Varyings vert (Attributes input)
+            {
+                Varyings output;
+                output.positionCS = mul(unity_MatrixVP, mul(unity_ObjectToWorld, input.positionOS));
+                output.uv = input.uv;
+                return output;
+            }
+
+            half4 frag(Varyings input) : SV_Target
+            {
+                return half4(input.uv, 0, 1);
+            }
+
+            ENDHLSL
+        }
+    }
+}";
+
 		[SerializeField, TextArea(10, 15)]
-		private string _shaderCode;
+		private string _shaderCode = DefaultShaderCode;
 
 		[Serializable]
 		public class ShaderMessage
@@ -181,7 +227,7 @@ namespace TakoLibEditor.Common
 		}
 
 		[CustomEditor(typeof(ProcedualTextureImporter))]
-		public class GradientTextureImporterEditor : ScriptedImporterEditor
+		public class ProcedualTextureImporterEditor : ScriptedImporterEditor
 		{
 			private ProcedualTextureImporter _target;
 
@@ -223,7 +269,7 @@ namespace TakoLibEditor.Common
                             rect.size = new(200, 20);
                             if (GUI.Button(rect, "Apply template"))
                             {
-                                _target._shaderCode = ProcedualTextureImporterSettings.instance.ShaderTemplate;
+                                _target._shaderCode = DefaultShaderCode;
                             }
                         }
                         //シェーダーにコンパイルエラーがある場合はエラー内容を表示する。
@@ -275,116 +321,10 @@ namespace TakoLibEditor.Common
 		}
 	}
 
-    /// <summary>
-    /// Shaderの初期設定をProjectSettingsに保持する。
-    /// </summary>
-    [FilePath("ProjectSettings/ProcedualTextureImporter.asset", FilePathAttribute.Location.ProjectFolder)]
-    public class ProcedualTextureImporterSettings : ScriptableSingleton<ProcedualTextureImporterSettings>
-    {
-		private static readonly string SHADER_TEMPLATE = $@"// ProjectSettings/Procedual Texture Importer/Shader Template has been applied.
-Shader ""Hidden/ProcedualTextureGenerated""
-{{
-    SubShader
-    {{
-        Tags {{ ""RenderType"" = ""Opaque"" }}
-        Pass
-        {{
-            ZTest Always Cull Off ZWrite Off
-
-            HLSLPROGRAM
-            #pragma vertex vert
-            #pragma fragment frag
-            #include ""Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl""
-
-            struct Attributes
-            {{
-                float4 positionOS : POSITION;
-                float2 uv : TEXCOORD0;
-            }};
-
-            struct Varyings
-            {{
-                float4 positionCS : SV_POSITION;
-                float2 uv : TEXCOORD0;
-            }};
-
-            Varyings vert (Attributes input)
-            {{
-                Varyings output;
-                output.positionCS = TransformObjectToHClip(input.positionOS.xyz);
-                output.uv = input.uv;
-                return output;
-            }}
-
-            half4 frag(Varyings input) : SV_Target
-            {{
-                return half4(input.uv, 0, 1);
-            }}
-
-            ENDHLSL
-        }}
-    }}
-}}";
-
-		[SerializeField] private string _defaultFileName = "gradient_";
-		[SerializeField, TextArea(10, 15)] private string _shaderTemplate;
-
-		public string DefaultFileName => _defaultFileName;
-		public string ShaderTemplate => string.IsNullOrEmpty(_shaderTemplate) ? SHADER_TEMPLATE : _shaderTemplate;
-
-        public void RevertToDefault()
-		{
-			_shaderTemplate = SHADER_TEMPLATE;
-        }
-
-        public void SaveSettings()
-        {
-            Save(true);
-        }
-
-        private void OnValidate()
-        {
-            Save(false);
-        }
-    }
-
-	/// <summary>
-	/// ProjectSettingsのUI。
-	/// </summary>
-    public static class ProcedualTextureImporterSettingsProvider
-    {
-        [SettingsProvider]
-        public static SettingsProvider CreateProvider()
-        {
-			return new SettingsProvider($"Project/Procedual Texture Importer", SettingsScope.Project)
-			{
-				guiHandler = (searchContext) =>
-				{
-					var settings = ProcedualTextureImporterSettings.instance;
-					SerializedObject serializedObject = new(settings);
-
-					if (GUILayout.Button("Save Settings", GUILayout.Width(140))) settings.SaveSettings();
-
-					EditorGUILayout.Space();
-
-                    EditorGUILayout.PropertyField(serializedObject.FindProperty("_defaultFileName"));
-					EditorGUILayout.PropertyField(serializedObject.FindProperty("_shaderTemplate"), GUILayout.MinHeight(300));
-
-					serializedObject.ApplyModifiedProperties();
-
-					if (GUILayout.Button("Revert To Default", GUILayout.Width(140)))
-					{
-						settings.RevertToDefault();
-					}
-				},
-			};
-        }
-    }
-
 	/// <summary>
 	/// .procedualtextureファイルを作成後に名前を編集するフェーズを設けるために必要なクラス。
 	/// </summary>
-    public class CreateGradientTextureAction : AssetCreationEndAction
+    public class CreateProcedualTextureAction : AssetCreationEndAction
     {
         public override void Action(EntityId entityId, string pathName, string resourceFile)
         {
