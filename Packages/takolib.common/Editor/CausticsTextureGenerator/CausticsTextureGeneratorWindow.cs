@@ -21,6 +21,7 @@ namespace TakoLibEditor.Common
         [SerializeField] private int _atlasColumns = 4;
         [SerializeField] private string _fileName = "Caustics";
         [SerializeField] private string _outputDirectory = string.Empty;
+        [SerializeField] private bool _atlasOnly;
         [SerializeField] private int _previewFrame;
         [SerializeField] private Vector2 _scrollPosition;
 
@@ -93,8 +94,8 @@ namespace TakoLibEditor.Common
             }
 
             EditorGUILayout.HelpBox(
-                "Presets include texture, sequence, atlas, simulation, appearance, and import settings. " +
-                "The output directory, file name, and preview frame remain unchanged.",
+                "Presets include texture, sequence, atlas, simulation, appearance, output, and import settings. " +
+                "The output directory is stored as a path relative to the Assets folder.",
                 MessageType.None);
         }
 
@@ -102,18 +103,28 @@ namespace TakoLibEditor.Common
         {
             EditorGUILayout.LabelField("Output", EditorStyles.boldLabel);
             _fileName = EditorGUILayout.TextField("Base File Name", _fileName);
+            _atlasOnly = EditorGUILayout.Toggle(
+                new GUIContent(
+                    "Atlas Only",
+                    "Outputs only the combined atlas PNG and skips individual sequence PNG files."),
+                _atlasOnly);
 
             using (new EditorGUILayout.HorizontalScope())
             {
-                _outputDirectory = EditorGUILayout.TextField("Directory", _outputDirectory);
+                EditorGUILayout.PrefixLabel(
+                    new GUIContent(
+                        "Directory",
+                        "Output directory relative to the project's Assets folder."));
+                GUILayout.Label("Assets/", GUILayout.Width(46f));
+                _outputDirectory = EditorGUILayout.TextField(_outputDirectory);
                 if (GUILayout.Button("Browse", GUILayout.Width(70f)))
                 {
                     string selected = EditorUtility.OpenFolderPanel(
                         "Select Caustics Output Directory",
-                        ResolveOutputDirectory(),
+                        GetDirectoryPickerStartPath(),
                         string.Empty);
                     if (!string.IsNullOrEmpty(selected))
-                        _outputDirectory = selected;
+                        SetOutputDirectoryFromAbsolutePath(selected);
                 }
             }
 
@@ -155,7 +166,9 @@ namespace TakoLibEditor.Common
                 "Sequence Memory",
                 $"{framePixels * 4.0 / (1024.0 * 1024.0):0.0} MiB (+ atlas working memory)");
             EditorGUILayout.HelpBox(
-                "Files: Name_000.png … and Name_Atlas.png. Atlas frame 0 is at the top-left.",
+                _atlasOnly
+                    ? "File: Name_Atlas.png. Atlas frame 0 is at the top-left."
+                    : "Files: Name_000.png … and Name_Atlas.png. Atlas frame 0 is at the top-left.",
                 MessageType.None);
         }
 
@@ -317,6 +330,9 @@ namespace TakoLibEditor.Common
 
             _settings = _preset.CreateSettingsCopy();
             _atlasColumns = Mathf.Clamp(_preset.AtlasColumns, 1, _settings.FrameCount);
+            _fileName = _preset.BaseFileName;
+            _outputDirectory = _preset.OutputDirectory;
+            _atlasOnly = _preset.AtlasOnly;
             _previewFrame = Mathf.Clamp(_previewFrame, 0, _settings.FrameCount - 1);
             DestroyPreview();
             Repaint();
@@ -328,7 +344,12 @@ namespace TakoLibEditor.Common
                 return;
 
             Undo.RecordObject(_preset, "Update Caustics Preset");
-            _preset.Store(_settings, _atlasColumns);
+            _preset.Store(
+                _settings,
+                _atlasColumns,
+                _fileName,
+                NormalizeAssetsRelativeDirectory(_outputDirectory),
+                _atlasOnly);
             EditorUtility.SetDirty(_preset);
             AssetDatabase.SaveAssetIfDirty(_preset);
         }
@@ -344,7 +365,12 @@ namespace TakoLibEditor.Common
                 return;
 
             CausticsTexturePreset preset = CreateInstance<CausticsTexturePreset>();
-            preset.Store(_settings, _atlasColumns);
+            preset.Store(
+                _settings,
+                _atlasColumns,
+                _fileName,
+                NormalizeAssetsRelativeDirectory(_outputDirectory),
+                _atlasOnly);
             AssetDatabase.CreateAsset(preset, path);
             AssetDatabase.SaveAssets();
             _preset = preset;
@@ -389,16 +415,20 @@ namespace TakoLibEditor.Common
                 }
 
                 Directory.CreateDirectory(outputDirectory);
-                WriteSequence(frames, outputDirectory, digits);
+                if (!_atlasOnly)
+                    WriteSequence(frames, outputDirectory, digits);
                 WriteAtlas(frames, outputDirectory);
                 ImportGeneratedTextures(outputPaths);
 
+                string generatedDescription = _atlasOnly
+                    ? "one loopable atlas"
+                    : $"{frames.Length} loopable frames and one atlas";
                 Debug.Log(
                     $"[{nameof(CausticsTextureGeneratorWindow)}] Generated " +
-                    $"{frames.Length} loopable frames and atlas at \"{outputDirectory}\".");
+                    $"{generatedDescription} at \"{outputDirectory}\".");
                 EditorUtility.DisplayDialog(
                     "Caustics Generated",
-                    $"Generated {frames.Length} frames and one atlas.\n\n{outputDirectory}",
+                    $"Generated {generatedDescription}.\n\n{outputDirectory}",
                     "OK");
             }
             catch (Exception exception)
@@ -542,12 +572,15 @@ namespace TakoLibEditor.Common
         private List<string> BuildOutputPaths(string outputDirectory, int digits)
         {
             string safeName = SanitizeFileName(_fileName);
-            List<string> paths = new(_settings.FrameCount + 1);
-            for (int frame = 0; frame < _settings.FrameCount; frame++)
+            List<string> paths = new(_atlasOnly ? 1 : _settings.FrameCount + 1);
+            if (!_atlasOnly)
             {
-                paths.Add(Path.Combine(
-                    outputDirectory,
-                    $"{safeName}_{frame.ToString($"D{digits}")}.png"));
+                for (int frame = 0; frame < _settings.FrameCount; frame++)
+                {
+                    paths.Add(Path.Combine(
+                        outputDirectory,
+                        $"{safeName}_{frame.ToString($"D{digits}")}.png"));
+                }
             }
             paths.Add(Path.Combine(outputDirectory, $"{safeName}_Atlas.png"));
             return paths;
@@ -562,6 +595,8 @@ namespace TakoLibEditor.Common
                 return "Base file name is required.";
             if (string.IsNullOrWhiteSpace(_outputDirectory))
                 return "Output directory is required.";
+            if (!TryResolveOutputDirectory(_outputDirectory, out _))
+                return "Output directory must be a relative path inside the project's Assets folder.";
 
             string safeName = SanitizeFileName(_fileName);
             if (string.IsNullOrWhiteSpace(safeName))
@@ -589,10 +624,80 @@ namespace TakoLibEditor.Common
 
         private string ResolveOutputDirectory()
         {
-            if (string.IsNullOrWhiteSpace(_outputDirectory))
-                return Application.dataPath;
+            return TryResolveOutputDirectory(_outputDirectory, out string outputDirectory)
+                ? outputDirectory
+                : Application.dataPath;
+        }
 
-            return Path.GetFullPath(_outputDirectory);
+        private string GetDirectoryPickerStartPath()
+        {
+            return TryResolveOutputDirectory(_outputDirectory, out string outputDirectory)
+                ? outputDirectory
+                : Application.dataPath;
+        }
+
+        private void SetOutputDirectoryFromAbsolutePath(string selectedDirectory)
+        {
+            string assetsDirectory = Path.GetFullPath(Application.dataPath);
+            string selected = Path.GetFullPath(selectedDirectory);
+            string relativePath = Path.GetRelativePath(assetsDirectory, selected)
+                .Replace('\\', '/');
+
+            if (!TryResolveOutputDirectory(relativePath, out _))
+            {
+                EditorUtility.DisplayDialog(
+                    "Invalid Output Directory",
+                    "Select the Assets folder or one of its subdirectories.",
+                    "OK");
+                return;
+            }
+
+            _outputDirectory = relativePath;
+        }
+
+        private static bool TryResolveOutputDirectory(
+            string assetsRelativePath,
+            out string outputDirectory)
+        {
+            outputDirectory = null;
+            if (string.IsNullOrWhiteSpace(assetsRelativePath) ||
+                Path.IsPathRooted(assetsRelativePath))
+            {
+                return false;
+            }
+
+            try
+            {
+                string assetsDirectory = Path.GetFullPath(Application.dataPath)
+                    .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                string candidate = Path.GetFullPath(
+                    Path.Combine(assetsDirectory, assetsRelativePath));
+                bool isAssetsDirectory = string.Equals(
+                    candidate,
+                    assetsDirectory,
+                    StringComparison.OrdinalIgnoreCase);
+                bool isAssetsChild = candidate.StartsWith(
+                    assetsDirectory + Path.DirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase);
+                if (!isAssetsDirectory && !isAssetsChild)
+                    return false;
+
+                outputDirectory = candidate;
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        private static string NormalizeAssetsRelativeDirectory(string assetsRelativePath)
+        {
+            if (!TryResolveOutputDirectory(assetsRelativePath, out string outputDirectory))
+                return string.Empty;
+
+            return Path.GetRelativePath(Application.dataPath, outputDirectory)
+                .Replace('\\', '/');
         }
 
         private static string SanitizeFileName(string fileName)
