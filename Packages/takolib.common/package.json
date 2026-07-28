@@ -2,9 +2,11 @@
   "name": "takolib.common",
   "displayName": "TakoLib Common",
   "version": "0.0.1",
-  "unity": "2022.3",
+  "unity": "6000.0",
   "changelogUrl": "https://github.com/takohachi88/TakoLib/releases",
-  "author": "takohachi",
+  "author": {
+    "name": "takohachi"
+  },
   "keywords": [
     "Common"
   ],
