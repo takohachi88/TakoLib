@@ -1,0 +1,61 @@
+#pragma kernel CSMain
+
+Texture2D<float4> _SourceR;
+Texture2D<float4> _SourceG;
+Texture2D<float4> _SourceB;
+Texture2D<float4> _SourceA;
+
+SamplerState sampler_SourceR;
+SamplerState sampler_SourceG;
+SamplerState sampler_SourceB;
+SamplerState sampler_SourceA;
+
+RWTexture2D<float4> _Result;
+
+int2 _OutputSize;
+int _ChannelR;
+int _ChannelG;
+int _ChannelB;
+int _ChannelA;
+int _EncodeSrgb;
+
+float GetChannel(float4 color, int channel)
+{
+    if (channel == 0) return color.r;
+    if (channel == 1) return color.g;
+    if (channel == 2) return color.b;
+    if (channel == 3) return color.a;
+    if (channel == 5) return 1.0;
+    return 0.0;
+}
+
+float3 LinearToSrgb(float3 color)
+{
+    float3 lower = color * 12.92;
+    float3 upper = 1.055 * pow(max(color, 0.0), 1.0 / 2.4) - 0.055;
+    return lerp(upper, lower, color <= 0.0031308);
+}
+
+[numthreads(8, 8, 1)]
+void CSMain(uint3 dispatchThreadId : SV_DispatchThreadID)
+{
+    uint2 outputSize = (uint2)_OutputSize;
+    if (any(dispatchThreadId.xy >= outputSize))
+    {
+        return;
+    }
+
+    float2 uv = ((float2)dispatchThreadId.xy + 0.5) / (float2)_OutputSize;
+    float4 result = float4(
+        GetChannel(_SourceR.SampleLevel(sampler_SourceR, uv, 0), _ChannelR),
+        GetChannel(_SourceG.SampleLevel(sampler_SourceG, uv, 0), _ChannelG),
+        GetChannel(_SourceB.SampleLevel(sampler_SourceB, uv, 0), _ChannelB),
+        GetChannel(_SourceA.SampleLevel(sampler_SourceA, uv, 0), _ChannelA));
+
+    if (_EncodeSrgb != 0)
+    {
+        result.rgb = LinearToSrgb(result.rgb);
+    }
+
+    _Result[dispatchThreadId.xy] = result;
+}
