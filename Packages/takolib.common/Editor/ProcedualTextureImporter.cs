@@ -1,11 +1,13 @@
 #if UNITY_EDITOR
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEditor.AssetImporters;
 using UnityEditor.ProjectWindowCallback;
+using UnityEditor.U2D.Sprites;
 using UnityEngine;
 
 namespace TakoLibEditor.Common
@@ -13,8 +15,8 @@ namespace TakoLibEditor.Common
 	/// <summary>
 	/// procedual textureをUnity上で作成する機能。
 	/// </summary>
-	[ScriptedImporter(1, "procedualtexture")]
-	public class ProcedualTextureImporter : ScriptedImporter
+	[ScriptedImporter(2, "procedualtexture")]
+	public class ProcedualTextureImporter : ScriptedImporter, ISpriteEditorDataProvider, ISpriteNameFileIdDataProvider, ITextureDataProvider
 	{
 		private const string MENU_PATH = "Assets/Create/2D/Procedual Texture";
 		[MenuItem(MENU_PATH, true)]
@@ -114,6 +116,10 @@ namespace TakoLibEditor.Common
 		[SerializeField] private TextureFormat _format = TextureFormat.RGBA32;
 		[SerializeField] private bool _linear = false;
 		[SerializeField] private bool _sprite = false;
+		[SerializeField] private SpriteImportMode _spriteMode = SpriteImportMode.Single;
+		[SerializeField] private float _pixelsPerUnit = 100f;
+		[SerializeField] private SpriteRect _singleSpriteRect;
+		[SerializeField] private SpriteRect[] _multipleSpriteRects = Array.Empty<SpriteRect>();
 
 		public override void OnImportAsset(AssetImportContext context)
 		{
@@ -177,18 +183,238 @@ namespace TakoLibEditor.Common
 
 			texture.Apply();
 
-			if (_sprite)
+			context.AddObjectToAsset("Texture", texture);//Spriteから参照されるTexture本体もサブアセットとして保持する。
+
+			if (!_sprite)
 			{
-				Sprite sprite = Sprite.Create(texture, new(0, 0, texture.width, texture.height), new(0.5f, 0.5f));
-				context.AddObjectToAsset("Sprite", sprite);
-				context.AddObjectToAsset("Texture", texture);//Texture本体の保持も必要。Spriteからはあくまで参照されているだけ。
-				context.SetMainObject(sprite);
+				context.SetMainObject(texture);
+				return;
+			}
+
+			EnsureSpriteEditorData();
+			if (_spriteMode == SpriteImportMode.Multiple)
+			{
+				foreach (SpriteRect spriteRect in _multipleSpriteRects)
+				{
+					Sprite sprite = CreateSprite(texture, spriteRect);
+					if (!sprite) continue;
+
+					context.AddObjectToAsset($"Sprite_{spriteRect.spriteID}", sprite);
+				}
+				context.SetMainObject(texture);
 			}
 			else
 			{
-				context.AddObjectToAsset("Texture", texture);
-				context.SetMainObject(texture);
+				Sprite sprite = CreateSprite(texture, _singleSpriteRect);
+				context.AddObjectToAsset("Sprite", sprite);
+				context.SetMainObject(sprite);
 			}
+		}
+
+		private void EnsureSpriteEditorData()
+		{
+			_pixelsPerUnit = Mathf.Max(0.01f, _pixelsPerUnit);
+			if (_spriteMode != SpriteImportMode.Single && _spriteMode != SpriteImportMode.Multiple)
+				_spriteMode = SpriteImportMode.Single;
+
+			if (_singleSpriteRect == null)
+			{
+				_singleSpriteRect = new SpriteRect
+				{
+					name = "Sprite",
+					alignment = SpriteAlignment.Center,
+					pivot = new Vector2(0.5f, 0.5f),
+					spriteID = GUID.Generate(),
+				};
+			}
+
+			_singleSpriteRect.rect = new Rect(0, 0, _size.x, _size.y);
+			if (string.IsNullOrEmpty(_singleSpriteRect.name)) _singleSpriteRect.name = "Sprite";
+			if (_singleSpriteRect.spriteID.Empty()) _singleSpriteRect.spriteID = GUID.Generate();
+
+			_multipleSpriteRects ??= Array.Empty<SpriteRect>();
+			HashSet<GUID> spriteIds = new();
+			for (int i = 0; i < _multipleSpriteRects.Length; i++)
+			{
+				SpriteRect spriteRect = _multipleSpriteRects[i];
+				if (spriteRect == null)
+				{
+					spriteRect = CreateDefaultSpriteRect($"Sprite_{i}", new Rect(0, 0, _size.x, _size.y));
+					_multipleSpriteRects[i] = spriteRect;
+				}
+				if (string.IsNullOrEmpty(spriteRect.name)) spriteRect.name = $"Sprite_{i}";
+				GUID spriteId = spriteRect.spriteID;
+				if (spriteId.Empty() || !spriteIds.Add(spriteId))
+				{
+					spriteRect.spriteID = GUID.Generate();
+					spriteIds.Add(spriteRect.spriteID);
+				}
+			}
+		}
+
+		private Sprite CreateSprite(Texture2D texture, SpriteRect spriteRect)
+		{
+			Rect rect = ClampSpriteRect(spriteRect.rect, texture.width, texture.height);
+			if (rect.width <= 0 || rect.height <= 0) return null;
+
+			Vector4 border = ClampBorder(spriteRect.border, rect.size);
+			Sprite sprite = Sprite.Create(
+				texture,
+				rect,
+				spriteRect.pivot,
+				_pixelsPerUnit,
+				0,
+				SpriteMeshType.FullRect,
+				border);
+			sprite.name = spriteRect.name;
+			return sprite;
+		}
+
+		private static Rect ClampSpriteRect(Rect rect, int textureWidth, int textureHeight)
+		{
+			float xMin = Mathf.Clamp(rect.xMin, 0, textureWidth);
+			float yMin = Mathf.Clamp(rect.yMin, 0, textureHeight);
+			float xMax = Mathf.Clamp(rect.xMax, xMin, textureWidth);
+			float yMax = Mathf.Clamp(rect.yMax, yMin, textureHeight);
+			return Rect.MinMaxRect(xMin, yMin, xMax, yMax);
+		}
+
+		private static Vector4 ClampBorder(Vector4 border, Vector2 rectSize)
+		{
+			border = new Vector4(
+				Mathf.Max(0, border.x),
+				Mathf.Max(0, border.y),
+				Mathf.Max(0, border.z),
+				Mathf.Max(0, border.w));
+
+			float horizontal = border.x + border.z;
+			if (horizontal > rectSize.x && horizontal > 0)
+			{
+				float scale = rectSize.x / horizontal;
+				border.x *= scale;
+				border.z *= scale;
+			}
+
+			float vertical = border.y + border.w;
+			if (vertical > rectSize.y && vertical > 0)
+			{
+				float scale = rectSize.y / vertical;
+				border.y *= scale;
+				border.w *= scale;
+			}
+			return border;
+		}
+
+		private static SpriteRect CreateDefaultSpriteRect(string name, Rect rect)
+		{
+			return new SpriteRect
+			{
+				name = name,
+				rect = rect,
+				alignment = SpriteAlignment.Center,
+				pivot = new Vector2(0.5f, 0.5f),
+				spriteID = GUID.Generate(),
+			};
+		}
+
+		private static SpriteRect CopySpriteRect(SpriteRect source)
+		{
+			if (source == null) return null;
+			return new SpriteRect
+			{
+				name = source.name,
+				rect = source.rect,
+				alignment = source.alignment,
+				pivot = source.pivot,
+				border = source.border,
+				customData = source.customData,
+				spriteID = source.spriteID,
+			};
+		}
+
+		SpriteImportMode ISpriteEditorDataProvider.spriteImportMode => _sprite ? _spriteMode : SpriteImportMode.None;
+		float ISpriteEditorDataProvider.pixelsPerUnit => _pixelsPerUnit;
+		UnityEngine.Object ISpriteEditorDataProvider.targetObject => this;
+
+		SpriteRect[] ISpriteEditorDataProvider.GetSpriteRects()
+		{
+			EnsureSpriteEditorData();
+			SpriteRect[] source = _spriteMode == SpriteImportMode.Multiple
+				? _multipleSpriteRects
+				: new[] { _singleSpriteRect };
+			return source.Select(CopySpriteRect).ToArray();
+		}
+
+		void ISpriteEditorDataProvider.SetSpriteRects(SpriteRect[] spriteRects)
+		{
+			spriteRects ??= Array.Empty<SpriteRect>();
+			if (_spriteMode == SpriteImportMode.Multiple)
+			{
+				_multipleSpriteRects = spriteRects
+					.Where(spriteRect => spriteRect != null)
+					.Select(CopySpriteRect)
+					.ToArray();
+			}
+			else if (spriteRects.Length > 0 && spriteRects[0] != null)
+			{
+				_singleSpriteRect = CopySpriteRect(spriteRects[0]);
+			}
+		}
+
+		void ISpriteEditorDataProvider.Apply()
+		{
+			EditorUtility.SetDirty(this);
+			AssetDatabase.WriteImportSettingsIfDirty(assetPath);
+		}
+
+		void ISpriteEditorDataProvider.InitSpriteEditorDataProvider() => EnsureSpriteEditorData();
+
+		T ISpriteEditorDataProvider.GetDataProvider<T>() where T : class
+		{
+			return this as T;
+		}
+
+		bool ISpriteEditorDataProvider.HasDataProvider(Type type)
+		{
+			return type == typeof(ITextureDataProvider)
+				|| type == typeof(ISpriteNameFileIdDataProvider)
+				|| type.IsAssignableFrom(GetType());
+		}
+
+		IEnumerable<SpriteNameFileIdPair> ISpriteNameFileIdDataProvider.GetNameFileIdPairs()
+		{
+			SpriteRect[] spriteRects = ((ISpriteEditorDataProvider)this).GetSpriteRects();
+			return spriteRects.Select(spriteRect => new SpriteNameFileIdPair(spriteRect.name, spriteRect.spriteID));
+		}
+
+		void ISpriteNameFileIdDataProvider.SetNameFileIdPairs(IEnumerable<SpriteNameFileIdPair> nameFileIdPairs)
+		{
+			if (nameFileIdPairs == null) return;
+			Dictionary<GUID, string> names = nameFileIdPairs.ToDictionary(pair => pair.GetFileGUID(), pair => pair.name);
+			SpriteRect[] spriteRects = _spriteMode == SpriteImportMode.Multiple
+				? _multipleSpriteRects
+				: new[] { _singleSpriteRect };
+			foreach (SpriteRect spriteRect in spriteRects)
+			{
+				if (spriteRect != null && names.TryGetValue(spriteRect.spriteID, out string spriteName))
+					spriteRect.name = spriteName;
+			}
+		}
+
+		Texture2D ITextureDataProvider.texture => LoadGeneratedTexture();
+		Texture2D ITextureDataProvider.previewTexture => LoadGeneratedTexture();
+
+		void ITextureDataProvider.GetTextureActualWidthAndHeight(out int width, out int height)
+		{
+			width = _size.x;
+			height = _size.y;
+		}
+
+		Texture2D ITextureDataProvider.GetReadableTexture2D() => LoadGeneratedTexture();
+
+		private Texture2D LoadGeneratedTexture()
+		{
+			return AssetDatabase.LoadAllAssetsAtPath(assetPath).OfType<Texture2D>().FirstOrDefault();
 		}
 
 		private Texture2D GenerateTextureFromShader(Texture2D texture)
@@ -295,8 +521,35 @@ namespace TakoLibEditor.Common
 				EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._format)));
 				EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._linear)));
 				EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._sprite)));
+				if (_target._sprite)
+				{
+					SerializedProperty spriteMode = serializedObject.FindProperty(nameof(_target._spriteMode));
+					spriteMode.intValue = EditorGUILayout.IntPopup(
+						"Sprite Mode",
+						spriteMode.intValue,
+						new[] { "Single", "Multiple" },
+						new[] { (int)SpriteImportMode.Single, (int)SpriteImportMode.Multiple });
+					EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._pixelsPerUnit)), new GUIContent("Pixels Per Unit"));
+				}
 
+				serializedObject.ApplyModifiedProperties();
 				ApplyRevertGUI();
+
+				if (_target._sprite)
+				{
+					bool hasModified = HasModified();
+					GUIContent spriteEditorContent = hasModified
+						? new GUIContent("Sprite Editor", "Apply the importer settings before opening Sprite Editor.")
+						: new GUIContent("Sprite Editor", "Edit the Sprite border, pivot, and slices.");
+					using (new EditorGUI.DisabledScope(hasModified))
+					{
+						if (GUILayout.Button(spriteEditorContent))
+						{
+							string spriteAssetPath = _target.assetPath;
+							EditorApplication.delayCall += () => OpenSpriteEditor(spriteAssetPath);
+						}
+					}
+				}
 
 				EditorGUILayout.Space();
 
@@ -316,7 +569,16 @@ namespace TakoLibEditor.Common
 					Debug.Log($"[{nameof(ProcedualTextureImporter)}] Export completed. ({filePath})");
 				}
 
-				serializedObject.ApplyModifiedProperties();
+			}
+
+			private static void OpenSpriteEditor(string assetPath)
+			{
+				UnityEngine.Object spriteAsset = AssetDatabase.LoadMainAssetAtPath(assetPath);
+				if (!spriteAsset) return;
+
+				Selection.activeObject = spriteAsset;
+				if (!EditorApplication.ExecuteMenuItem("Window/2D/Sprite Editor"))
+					Debug.LogError($"[{nameof(ProcedualTextureImporter)}] Failed to open Sprite Editor.");
 			}
 		}
 	}

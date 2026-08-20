@@ -8,25 +8,27 @@ namespace TakoLibEditor.Common
 {
     /// <summary>
     /// <see cref="CausticsTextureGenerator"/>で使用する設定。
-    /// 波の周波数とアニメーション速度を整数に限定することで、
+    /// 空間周波数を整数に限定し、時間変化を円運動にすることで、
     /// テクスチャ空間と時間方向の両方を周期化する。
     /// </summary>
     [Serializable]
     public sealed class CausticsTextureSettings
     {
-        public int Width = 512;
-        public int Height = 512;
+        public int Width = 256;
+        public int Height = 256;
         public int FrameCount = 16;
-        public int Supersampling = 2;
-        public int WaveCount = 12;
-        public int PatternScale = 2;
+        public int Supersampling = 4;
+        public int WaveCount = 32;
+        public int PatternScale = 4;
         public int Seed = 12345;
-        public float RefractionStrength = 0.045f;
-        public float ChromaticAberration = 0.018f;
-        public int BlurRadius = 1;
-        public float BlackPoint = 0.7f;
-        public float Exposure = 2.4f;
-        public float Contrast = 1.15f;
+        [Tooltip("ループ中に時間方向へ移動する距離。0で静止し、小さいほどフレーム間の変化が滑らかになります。")]
+        public float AnimationSpeed = 0.25f;
+        public float RefractionStrength = 0.015f;
+        public float ChromaticAberration = 0.219f;
+        public int BlurRadius;
+        public float BlackPoint;
+        public float Exposure = 0.1f;
+        public float Contrast = 0.73f;
         public Color Tint = Color.white;
         public bool AlphaFromIntensity;
         public bool Linear = true;
@@ -49,10 +51,12 @@ namespace TakoLibEditor.Common
                 return "Wave count must be between 4 and 32.";
             if (PatternScale < 1 || PatternScale > 12)
                 return "Pattern scale must be between 1 and 12.";
+            if (AnimationSpeed < 0f || AnimationSpeed > 2f)
+                return "Animation speed must be between 0 and 2.";
             if (RefractionStrength < 0f || RefractionStrength > 0.25f)
                 return "Refraction strength must be between 0 and 0.25.";
-            if (ChromaticAberration < 0f || ChromaticAberration > 0.25f)
-                return "Chromatic aberration must be between 0 and 0.25.";
+            if (ChromaticAberration < 0f || ChromaticAberration > 0.5f)
+                return "Chromatic aberration must be between 0 and 0.5.";
             if (BlurRadius < 0 || BlurRadius > 16)
                 return "Blur radius must be between 0 and 16.";
             if (BlackPoint < 0f || BlackPoint > 2f)
@@ -77,7 +81,8 @@ namespace TakoLibEditor.Common
         {
             public readonly int FrequencyX;
             public readonly int FrequencyY;
-            public readonly int TimeCycles;
+            public readonly double TemporalX;
+            public readonly double TemporalY;
             public readonly double Phase;
             public readonly double GradientX;
             public readonly double GradientY;
@@ -85,14 +90,16 @@ namespace TakoLibEditor.Common
             public Wave(
                 int frequencyX,
                 int frequencyY,
-                int timeCycles,
+                double temporalX,
+                double temporalY,
                 double phase,
                 double gradientX,
                 double gradientY)
             {
                 FrequencyX = frequencyX;
                 FrequencyY = frequencyY;
-                TimeCycles = timeCycles;
+                TemporalX = temporalX;
+                TemporalY = temporalY;
                 Phase = phase;
                 GradientX = gradientX;
                 GradientY = gradientY;
@@ -103,20 +110,23 @@ namespace TakoLibEditor.Common
         {
             public readonly int FrequencyX;
             public readonly int FrequencyY;
-            public readonly int TimeCycles;
+            public readonly double TemporalX;
+            public readonly double TemporalY;
             public readonly double Phase;
             public readonly double Amplitude;
 
             public WaveSource(
                 int frequencyX,
                 int frequencyY,
-                int timeCycles,
+                double temporalX,
+                double temporalY,
                 double phase,
                 double amplitude)
             {
                 FrequencyX = frequencyX;
                 FrequencyY = frequencyY;
-                TimeCycles = timeCycles;
+                TemporalX = temporalX;
+                TemporalY = temporalY;
                 Phase = phase;
                 Amplitude = amplitude;
             }
@@ -145,6 +155,10 @@ namespace TakoLibEditor.Common
             int sampleCount = sampleWidth * sampleHeight;
             float sampleEnergy = 1f / (settings.Supersampling * settings.Supersampling);
             double time = (double)frameIndex / settings.FrameCount;
+            double loopAngle = TwoPi * time;
+            double loopX = Math.Cos(loopAngle);
+            double loopY = Math.Sin(loopAngle);
+            double animationPhaseScale = TwoPi * settings.AnimationSpeed;
 
             Wave[] waves = CreateWaves(settings);
             float[] gradientX = new float[sampleCount];
@@ -164,10 +178,8 @@ namespace TakoLibEditor.Common
                     for (int waveIndex = 0; waveIndex < waves.Length; waveIndex++)
                     {
                         Wave wave = waves[waveIndex];
-                        double phase = TwoPi * (
-                            wave.FrequencyX * u +
-                            wave.FrequencyY * v +
-                            wave.TimeCycles * time) + wave.Phase;
+                        double temporalOffset = animationPhaseScale * (wave.TemporalX * loopX + wave.TemporalY * loopY);
+                        double phase = TwoPi * (wave.FrequencyX * u + wave.FrequencyY * v) + wave.Phase + temporalOffset;
                         double cosine = Math.Cos(phase);
                         dx += wave.GradientX * cosine;
                         dy += wave.GradientY * cosine;
@@ -271,14 +283,11 @@ namespace TakoLibEditor.Common
                         Math.Sqrt(frequencyX * frequencyX + frequencyY * frequencyY) < minimumFrequency) &&
                        attempts < 100);
 
-                int timeCycles = random.Next(-3, 4);
-                if (timeCycles == 0)
-                    timeCycles = random.Next(0, 2) == 0 ? -1 : 1;
-
                 double lengthSquared = frequencyX * frequencyX + frequencyY * frequencyY;
                 double amplitudeVariation = 0.7 + random.NextDouble() * 0.6;
                 double amplitude = amplitudeVariation / Math.Max(1.0, lengthSquared);
                 double phase = random.NextDouble() * TwoPi;
+                double temporalAngle = random.NextDouble() * TwoPi;
                 double gradientX = TwoPi * frequencyX * amplitude;
                 double gradientY = TwoPi * frequencyY * amplitude;
                 gradientPower += (gradientX * gradientX + gradientY * gradientY) * 0.5;
@@ -286,7 +295,8 @@ namespace TakoLibEditor.Common
                 sources[i] = new WaveSource(
                     frequencyX,
                     frequencyY,
-                    timeCycles,
+                    Math.Cos(temporalAngle),
+                    Math.Sin(temporalAngle),
                     phase,
                     amplitude);
             }
@@ -301,7 +311,8 @@ namespace TakoLibEditor.Common
                 waves[i] = new Wave(
                     source.FrequencyX,
                     source.FrequencyY,
-                    source.TimeCycles,
+                    source.TemporalX,
+                    source.TemporalY,
                     source.Phase,
                     TwoPi * source.FrequencyX * source.Amplitude * normalization,
                     TwoPi * source.FrequencyY * source.Amplitude * normalization);
