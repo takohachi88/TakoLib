@@ -268,7 +268,9 @@
       "version": "file:takolib.common",
       "depth": 0,
       "source": "embedded",
-      "dependencies": {}
+      "dependencies": {
+        "com.unity.2d.sprite": "1.0.0"
+      }
     },
     "takolib.urp": {
       "version": "file:takolib.urp",

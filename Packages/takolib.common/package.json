@@ -3,6 +3,9 @@
   "displayName": "TakoLib Common",
   "version": "0.0.1",
   "unity": "6000.0",
+  "dependencies": {
+    "com.unity.2d.sprite": "1.0.0"
+  },
   "changelogUrl": "https://github.com/takohachi88/TakoLib/releases",
   "author": {
     "name": "takohachi"

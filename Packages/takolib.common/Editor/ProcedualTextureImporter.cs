@@ -16,7 +16,7 @@ namespace TakoLibEditor.Common
 	/// procedual textureをUnity上で作成する機能。
 	/// </summary>
 	[ScriptedImporter(2, "procedualtexture")]
-	public class ProcedualTextureImporter : ScriptedImporter, ISpriteEditorDataProvider, ISpriteNameFileIdDataProvider, ITextureDataProvider
+	public class ProcedualTextureImporter : ScriptedImporter, ISpriteEditorDataProvider, ISpriteNameFileIdDataProvider, ITextureDataProvider, ISpriteFrameEditCapability
 	{
 		private const string MENU_PATH = "Assets/Create/2D/Procedual Texture";
 		[MenuItem(MENU_PATH, true)]
@@ -378,6 +378,7 @@ namespace TakoLibEditor.Common
 		{
 			return type == typeof(ITextureDataProvider)
 				|| type == typeof(ISpriteNameFileIdDataProvider)
+				|| type == typeof(ISpriteFrameEditCapability)
 				|| type.IsAssignableFrom(GetType());
 		}
 
@@ -411,6 +412,16 @@ namespace TakoLibEditor.Common
 		}
 
 		Texture2D ITextureDataProvider.GetReadableTexture2D() => LoadGeneratedTexture();
+
+		EditCapability ISpriteFrameEditCapability.GetEditCapability()
+		{
+			return new EditCapability(EEditCapability.All);
+		}
+
+		void ISpriteFrameEditCapability.SetEditCapability(EditCapability editCapability)
+		{
+			// Procedual TextureではSprite Editorの全編集機能を常に許可する。
+		}
 
 		private Texture2D LoadGeneratedTexture()
 		{
