@@ -15,7 +15,7 @@ namespace TakoLibEditor.Common
 	/// <summary>
 	/// procedual textureをUnity上で作成する機能。
 	/// </summary>
-	[ScriptedImporter(2, "procedualtexture")]
+	[ScriptedImporter(3, "procedualtexture")]
 	public class ProcedualTextureImporter : ScriptedImporter, ISpriteEditorDataProvider, ISpriteNameFileIdDataProvider, ITextureDataProvider, ISpriteFrameEditCapability
 	{
 		private const string MENU_PATH = "Assets/Create/2D/Procedual Texture";
@@ -37,9 +37,10 @@ namespace TakoLibEditor.Common
 
 		private enum SpecifyMode
 		{
-			Curve,
-			Gradient,
-			Shader,
+			Curve = 0,
+			Gradient = 1,
+			Shader = 2,
+			MultipleGradients = 3,
 		}
 
 		[SerializeField] private SpecifyMode _colorSpecifyMode = SpecifyMode.Gradient;
@@ -51,6 +52,8 @@ namespace TakoLibEditor.Common
 
 		[SerializeField, GradientUsage(true)]
 		private Gradient _gradient;
+		[SerializeField, GradientUsage(true)]
+		private Gradient[] _gradients;
 
 		private static readonly string DefaultShaderCode = @"Shader ""Hidden/TakoLib/ProcedualTexture""
 {
@@ -123,8 +126,10 @@ namespace TakoLibEditor.Common
 
 		public override void OnImportAsset(AssetImportContext context)
 		{
-			_size.x = Mathf.Max(_vertical ? 1 : 2, _size.x);
-			_size.y = Mathf.Max(_vertical ? 2 : 1, _size.y);
+			bool isMultipleGradients = _colorSpecifyMode == SpecifyMode.MultipleGradients;
+			bool isVertical = !isMultipleGradients && _vertical;
+			_size.x = Mathf.Max(isVertical ? 1 : 2, _size.x);
+			_size.y = Mathf.Max(isVertical ? 2 : 1, _size.y);
 
 			if (_gradient == null)
 			{
@@ -143,7 +148,20 @@ namespace TakoLibEditor.Common
 			if (_curveB == null) _curveB = AnimationCurve.EaseInOut(0, 1, 1, 1);
 			if (_curveA == null) _curveA = AnimationCurve.EaseInOut(0, 0, 1, 1);
 
-			Texture2D texture = new(_size.x, _size.y, _format, false, _linear);
+			if (!CanGenerateTexture())
+			{
+				Texture2D invalidTexture = new(1, 1, TextureFormat.RGBA32, false, _linear);
+				invalidTexture.name = "Texture2D";
+				invalidTexture.SetPixel(0, 0, Color.clear);
+				invalidTexture.Apply();
+				context.LogImportError("Multiple Gradients requires at least one non-null Gradient.");
+				context.AddObjectToAsset("Texture", invalidTexture);
+				context.SetMainObject(invalidTexture);
+				return;
+			}
+
+			Vector2Int outputSize = GetOutputTextureSize();
+			Texture2D texture = new(outputSize.x, outputSize.y, _format, false, _linear);
 			texture.name = "Texture2D";
 			texture.wrapMode = _wrapMode;
 			texture.filterMode = _filterMode;
@@ -159,6 +177,19 @@ namespace TakoLibEditor.Common
 						{
 							float progress = CalculateProgress(x, y);
 							texture.SetPixel(x, y, _gradient.Evaluate(progress));
+						}
+					}
+					break;
+				case SpecifyMode.MultipleGradients:
+					for (int gradientIndex = 0; gradientIndex < _gradients.Length; gradientIndex++)
+					{
+						Gradient gradient = _gradients[gradientIndex];
+						int yOffset = (_gradients.Length - gradientIndex - 1) * _size.y;
+						for (int x = 0; x < _size.x; x++)
+						{
+							Color color = gradient.Evaluate((float)x / (_size.x - 1));
+							for (int y = 0; y < _size.y; y++)
+								texture.SetPixel(x, yOffset + y, color);
 						}
 					}
 					break;
@@ -211,6 +242,22 @@ namespace TakoLibEditor.Common
 			}
 		}
 
+		private bool CanGenerateTexture()
+		{
+			return _colorSpecifyMode != SpecifyMode.MultipleGradients
+				|| (_gradients != null && _gradients.Length > 0 && _gradients.All(gradient => gradient != null));
+		}
+
+		private Vector2Int GetOutputTextureSize()
+		{
+			if (_colorSpecifyMode != SpecifyMode.MultipleGradients)
+				return _size;
+
+			int gradientCount = _gradients?.Length ?? 0;
+			long outputHeight = (long)_size.y * gradientCount;
+			return new Vector2Int(_size.x, (int)Math.Min(outputHeight, int.MaxValue));
+		}
+
 		private void EnsureSpriteEditorData()
 		{
 			_pixelsPerUnit = Mathf.Max(0.01f, _pixelsPerUnit);
@@ -228,7 +275,8 @@ namespace TakoLibEditor.Common
 				};
 			}
 
-			_singleSpriteRect.rect = new Rect(0, 0, _size.x, _size.y);
+			Vector2Int outputSize = GetOutputTextureSize();
+			_singleSpriteRect.rect = new Rect(0, 0, outputSize.x, outputSize.y);
 			if (string.IsNullOrEmpty(_singleSpriteRect.name)) _singleSpriteRect.name = "Sprite";
 			if (_singleSpriteRect.spriteID.Empty()) _singleSpriteRect.spriteID = GUID.Generate();
 
@@ -239,7 +287,7 @@ namespace TakoLibEditor.Common
 				SpriteRect spriteRect = _multipleSpriteRects[i];
 				if (spriteRect == null)
 				{
-					spriteRect = CreateDefaultSpriteRect($"Sprite_{i}", new Rect(0, 0, _size.x, _size.y));
+					spriteRect = CreateDefaultSpriteRect($"Sprite_{i}", new Rect(0, 0, outputSize.x, outputSize.y));
 					_multipleSpriteRects[i] = spriteRect;
 				}
 				if (string.IsNullOrEmpty(spriteRect.name)) spriteRect.name = $"Sprite_{i}";
@@ -407,8 +455,9 @@ namespace TakoLibEditor.Common
 
 		void ITextureDataProvider.GetTextureActualWidthAndHeight(out int width, out int height)
 		{
-			width = _size.x;
-			height = _size.y;
+			Vector2Int outputSize = GetOutputTextureSize();
+			width = outputSize.x;
+			height = outputSize.y;
 		}
 
 		Texture2D ITextureDataProvider.GetReadableTexture2D() => LoadGeneratedTexture();
@@ -468,20 +517,35 @@ namespace TakoLibEditor.Common
 		{
 			private ProcedualTextureImporter _target;
 
+			protected override bool CanApply()
+			{
+				return base.CanApply()
+					&& target is ProcedualTextureImporter importer
+					&& importer.CanGenerateTexture();
+			}
+
 			public override void OnInspectorGUI()
 			{
 				_target = target as ProcedualTextureImporter;
 
 				serializedObject.Update();
 
-				EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._colorSpecifyMode)));
+				SerializedProperty colorSpecifyModeProperty = serializedObject.FindProperty(nameof(_target._colorSpecifyMode));
+				EditorGUILayout.PropertyField(colorSpecifyModeProperty);
+				SpecifyMode colorSpecifyMode = (SpecifyMode)colorSpecifyModeProperty.intValue;
 				EditorGUI.indentLevel++;
 				EditorGUILayout.BeginVertical(GUI.skin.box);
 
-                switch (_target._colorSpecifyMode)
+				switch (colorSpecifyMode)
 				{
 					case SpecifyMode.Gradient:
 						EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._gradient)));
+						break;
+					case SpecifyMode.MultipleGradients:
+						SerializedProperty gradientsProperty = serializedObject.FindProperty(nameof(_target._gradients));
+						EditorGUILayout.PropertyField(gradientsProperty, true);
+						if (gradientsProperty.arraySize == 0)
+							EditorGUILayout.HelpBox("Add at least one non-null Gradient to enable Apply and Export.", MessageType.Warning);
 						break;
 					case SpecifyMode.Curve:
 						Color color = GUI.backgroundColor;
@@ -510,7 +574,7 @@ namespace TakoLibEditor.Common
                             }
                         }
                         //シェーダーにコンパイルエラーがある場合はエラー内容を表示する。
-                        foreach (ShaderMessage message in _target._shaderMessages)
+						foreach (ShaderMessage message in _target._shaderMessages ?? Array.Empty<ShaderMessage>())
 						{
 							EditorGUILayout.HelpBox(message.Message, message.Severity switch
 							{
@@ -525,8 +589,21 @@ namespace TakoLibEditor.Common
                 EditorGUILayout.EndVertical();
                 EditorGUI.indentLevel--;
 
-				EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._size)));
-				EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._vertical)));
+				SerializedProperty sizeProperty = serializedObject.FindProperty(nameof(_target._size));
+				EditorGUILayout.PropertyField(sizeProperty);
+				if (colorSpecifyMode == SpecifyMode.MultipleGradients)
+				{
+					SerializedProperty gradientsProperty = serializedObject.FindProperty(nameof(_target._gradients));
+					Vector2Int size = sizeProperty.vector2IntValue;
+					int width = Mathf.Max(2, size.x);
+					int heightPerGradient = Mathf.Max(1, size.y);
+					long resultHeight = (long)heightPerGradient * gradientsProperty.arraySize;
+					EditorGUILayout.LabelField("Result Size", $"{width} x {resultHeight}");
+				}
+				else
+				{
+					EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._vertical)));
+				}
 				EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._wrapMode)));
 				EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._filterMode)));
 				EditorGUILayout.PropertyField(serializedObject.FindProperty(nameof(_target._format)));
@@ -564,20 +641,22 @@ namespace TakoLibEditor.Common
 
 				EditorGUILayout.Space();
 
-				if (GUILayout.Button("Export as texture asset", GUILayout.Width(200), GUILayout.Height(20)))
+				using (new EditorGUI.DisabledScope(!_target.CanGenerateTexture()))
 				{
-					string filePath = EditorUtility.SaveFilePanel("Export Procedual Texture", Application.dataPath, string.Empty, "png");
-					if (string.IsNullOrEmpty(filePath)) return;
-					string assetPath = filePath.Replace(Application.dataPath, "Assets");
-					Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(_target.assetPath);
-					if (!texture)
+					if (GUILayout.Button("Export as texture asset", GUILayout.Width(200), GUILayout.Height(20)))
 					{
-						Debug.LogError($"[{nameof(ProcedualTextureImporter)}] Failed to load texture.");
-						return;
+						string filePath = EditorUtility.SaveFilePanel("Export Procedual Texture", Application.dataPath, string.Empty, "png");
+						if (string.IsNullOrEmpty(filePath)) return;
+						Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(_target.assetPath);
+						if (!texture)
+						{
+							Debug.LogError($"[{nameof(ProcedualTextureImporter)}] Failed to load texture.");
+							return;
+						}
+						File.WriteAllBytes(filePath, texture.EncodeToPNG());
+						AssetDatabase.Refresh();
+						Debug.Log($"[{nameof(ProcedualTextureImporter)}] Export completed. ({filePath})");
 					}
-					File.WriteAllBytes(filePath, texture.EncodeToPNG());
-					AssetDatabase.Refresh();
-					Debug.Log($"[{nameof(ProcedualTextureImporter)}] Export completed. ({filePath})");
 				}
 
 			}
