@@ -77,6 +77,18 @@ namespace TakoLibEditor.Common
     {
         private const double TwoPi = Math.PI * 2.0;
 
+        internal readonly struct GpuWave
+        {
+            public readonly Vector4 SpatialTemporal;
+            public readonly Vector4 PhaseGradient;
+
+            public GpuWave(Vector4 spatialTemporal, Vector4 phaseGradient)
+            {
+                SpatialTemporal = spatialTemporal;
+                PhaseGradient = phaseGradient;
+            }
+        }
+
         private readonly struct Wave
         {
             public readonly int FrequencyX;
@@ -257,6 +269,20 @@ namespace TakoLibEditor.Common
             }
 
             return pixels;
+        }
+
+        internal static GpuWave[] CreateGpuWaves(CausticsTextureSettings settings)
+        {
+            Wave[] waves = CreateWaves(settings);
+            GpuWave[] gpuWaves = new GpuWave[waves.Length];
+            for (int i = 0; i < waves.Length; i++)
+            {
+                Wave wave = waves[i];
+                gpuWaves[i] = new GpuWave(
+                    new Vector4(wave.FrequencyX, wave.FrequencyY, (float)wave.TemporalX, (float)wave.TemporalY),
+                    new Vector4((float)wave.Phase, (float)wave.GradientX, (float)wave.GradientY, 0f));
+            }
+            return gpuWaves;
         }
 
         private static Wave[] CreateWaves(CausticsTextureSettings settings)

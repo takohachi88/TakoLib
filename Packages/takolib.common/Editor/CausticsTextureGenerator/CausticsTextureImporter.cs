@@ -84,37 +84,43 @@ namespace TakoLibEditor.Common
             if (validationError != null)
                 throw new InvalidOperationException(validationError);
 
+            context.DependsOnArtifact(CausticsTextureComputeGenerator.ComputeShaderPath);
+            CausticsTextureComputeGenerator computeGenerator = CreateComputeGenerator(context, settings);
+
             int atlasRows = Mathf.CeilToInt((float)settings.FrameCount / atlasColumns);
             int atlasWidth = settings.Width * atlasColumns;
             int atlasHeight = settings.Height * atlasRows;
             Color32[] atlasPixels = new Color32[atlasWidth * atlasHeight];
             int frameDigits = Mathf.Max(3, (settings.FrameCount - 1).ToString().Length);
 
-            for (int frameIndex = 0; frameIndex < settings.FrameCount; frameIndex++)
+            try
             {
-                Color32[] framePixels =
-                    CausticsTextureGenerator.GenerateFrame(settings, frameIndex);
-                CopyFrameToAtlas(
-                    framePixels,
-                    frameIndex,
-                    settings.Width,
-                    settings.Height,
-                    atlasColumns,
-                    atlasRows,
-                    atlasPixels,
-                    atlasWidth);
-
-                if (!_atlasOnly && !_sprite)
+                for (int frameIndex = 0; frameIndex < settings.FrameCount; frameIndex++)
                 {
-                    Texture2D frameTexture = CreateTexture(
-                        context,
-                        settings.Width,
-                        settings.Height,
-                        framePixels,
-                        settings,
-                        $"Frame_{frameIndex.ToString($"D{frameDigits}")}");
-                    context.AddObjectToAsset(frameTexture.name, frameTexture);
+                    Color32[] framePixels;
+                    try
+                    {
+                        framePixels = computeGenerator != null ? computeGenerator.GenerateFrame(frameIndex) : CausticsTextureGenerator.GenerateFrame(settings, frameIndex);
+                    }
+                    catch (Exception exception) when (computeGenerator != null)
+                    {
+                        context.LogImportWarning($"GPU generation failed and was replaced with CPU generation: {exception.Message}");
+                        computeGenerator.Dispose();
+                        computeGenerator = null;
+                        framePixels = CausticsTextureGenerator.GenerateFrame(settings, frameIndex);
+                    }
+
+                    CopyFrameToAtlas(framePixels, frameIndex, settings.Width, settings.Height, atlasColumns, atlasRows, atlasPixels, atlasWidth);
+                    if (!_atlasOnly && !_sprite)
+                    {
+                        Texture2D frameTexture = CreateTexture(context, settings.Width, settings.Height, framePixels, settings, $"Frame_{frameIndex.ToString($"D{frameDigits}")}");
+                        context.AddObjectToAsset(frameTexture.name, frameTexture);
+                    }
                 }
+            }
+            finally
+            {
+                computeGenerator?.Dispose();
             }
 
             string atlasName = Path.GetFileNameWithoutExtension(context.assetPath);
@@ -158,6 +164,27 @@ namespace TakoLibEditor.Common
                 context.LogImportWarning(
                     $"Texture format {_format} is not supported by the current graphics device. " +
                     "The asset may not be previewable on this platform.");
+            }
+        }
+
+        private static CausticsTextureComputeGenerator CreateComputeGenerator(AssetImportContext context, CausticsTextureSettings settings)
+        {
+            if (!SystemInfo.supportsComputeShaders)
+                return null;
+            ComputeShader shader = AssetDatabase.LoadAssetAtPath<ComputeShader>(CausticsTextureComputeGenerator.ComputeShaderPath);
+            if (shader == null)
+            {
+                context.LogImportWarning("The caustics ComputeShader was not found. CPU generation will be used.");
+                return null;
+            }
+            try
+            {
+                return new CausticsTextureComputeGenerator(shader, settings);
+            }
+            catch (Exception exception)
+            {
+                context.LogImportWarning($"The caustics ComputeShader could not be initialized. CPU generation will be used: {exception.Message}");
+                return null;
             }
         }
 

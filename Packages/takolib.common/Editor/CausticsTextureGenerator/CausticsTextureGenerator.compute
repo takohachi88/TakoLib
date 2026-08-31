@@ -1,0 +1,165 @@
+#pragma kernel ClearAccumulation
+#pragma kernel AccumulateCaustics
+#pragma kernel ResolveDensity
+#pragma kernel BlurHorizontal
+#pragma kernel BlurVertical
+#pragma kernel ToneMap
+
+#define TWO_PI 6.283185307179586
+
+struct WaveData
+{
+    float4 SpatialTemporal;
+    float4 PhaseGradient;
+};
+
+StructuredBuffer<WaveData> _Waves;
+RWStructuredBuffer<uint> _Accumulation;
+StructuredBuffer<float4> _DensityInput;
+RWStructuredBuffer<float4> _DensityOutput;
+RWTexture2D<float4> _Output;
+
+int _Width;
+int _Height;
+int _SampleWidth;
+int _SampleHeight;
+int _PixelCount;
+int _WaveCount;
+int _BlurRadius;
+int _AlphaFromIntensity;
+float _SampleEnergy;
+float _FixedPointScale;
+float _AnimationPhaseScale;
+float _RefractionStrength;
+float _ChromaticAberration;
+float _BlackPoint;
+float _Exposure;
+float _Contrast;
+float4 _Tint;
+float4 _LoopPosition;
+
+int WrapIndex(int value, int length)
+{
+    int result = value % length;
+    return result < 0 ? result + length : result;
+}
+
+void AddAccumulation(int x, int y, int channel, float energy)
+{
+    int pixelIndex = WrapIndex(y, _Height) * _Width + WrapIndex(x, _Width);
+    uint amount = (uint)round(max(0.0, energy) * _FixedPointScale);
+    InterlockedAdd(_Accumulation[pixelIndex * 3 + channel], amount);
+}
+
+void SplatPeriodic(float2 uv, float2 gradient, float strength, int channel)
+{
+    float2 pixel = frac(uv + gradient * strength) * float2(_Width, _Height) - 0.5;
+    int2 lower = (int2)floor(pixel);
+    float2 fraction = pixel - lower;
+    AddAccumulation(lower.x, lower.y, channel, _SampleEnergy * (1.0 - fraction.x) * (1.0 - fraction.y));
+    AddAccumulation(lower.x + 1, lower.y, channel, _SampleEnergy * fraction.x * (1.0 - fraction.y));
+    AddAccumulation(lower.x, lower.y + 1, channel, _SampleEnergy * (1.0 - fraction.x) * fraction.y);
+    AddAccumulation(lower.x + 1, lower.y + 1, channel, _SampleEnergy * fraction.x * fraction.y);
+}
+
+[numthreads(64, 1, 1)]
+void ClearAccumulation(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x < (uint)(_PixelCount * 3))
+        _Accumulation[id.x] = 0;
+}
+
+[numthreads(8, 8, 1)]
+void AccumulateCaustics(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_SampleWidth || id.y >= (uint)_SampleHeight)
+        return;
+
+    float2 uv = (float2(id.xy) + 0.5) / float2(_SampleWidth, _SampleHeight);
+    float2 gradient = 0.0;
+    for (int waveIndex = 0; waveIndex < _WaveCount; waveIndex++)
+    {
+        WaveData wave = _Waves[waveIndex];
+        float temporalOffset = _AnimationPhaseScale * dot(wave.SpatialTemporal.zw, _LoopPosition.xy);
+        float phase = TWO_PI * dot(wave.SpatialTemporal.xy, uv) + wave.PhaseGradient.x + temporalOffset;
+        gradient += wave.PhaseGradient.yz * cos(phase);
+    }
+
+    float redStrength = _RefractionStrength * (1.0 + _ChromaticAberration);
+    float blueStrength = _RefractionStrength * (1.0 - _ChromaticAberration);
+    SplatPeriodic(uv, gradient, redStrength, 0);
+    SplatPeriodic(uv, gradient, _RefractionStrength, 1);
+    SplatPeriodic(uv, gradient, blueStrength, 2);
+}
+
+[numthreads(8, 8, 1)]
+void ResolveDensity(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_Width || id.y >= (uint)_Height)
+        return;
+    int2 pixel = (int2)id.xy;
+    int index = pixel.y * _Width + pixel.x;
+    float inverseScale = 1.0 / _FixedPointScale;
+    _DensityOutput[index] = float4(
+        _Accumulation[index * 3] * inverseScale,
+        _Accumulation[index * 3 + 1] * inverseScale,
+        _Accumulation[index * 3 + 2] * inverseScale,
+        1.0);
+}
+
+float GaussianWeight(int offset)
+{
+    float sigma = max(0.5, _BlurRadius * 0.5);
+    return exp(-(offset * offset) / (2.0 * sigma * sigma));
+}
+
+[numthreads(8, 8, 1)]
+void BlurHorizontal(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_Width || id.y >= (uint)_Height)
+        return;
+    int2 pixel = (int2)id.xy;
+    float4 sum = 0.0;
+    float weightSum = 0.0;
+    for (int offset = -_BlurRadius; offset <= _BlurRadius; offset++)
+    {
+        float weight = GaussianWeight(offset);
+        int sourceX = WrapIndex(pixel.x + offset, _Width);
+        sum += _DensityInput[pixel.y * _Width + sourceX] * weight;
+        weightSum += weight;
+    }
+    _DensityOutput[pixel.y * _Width + pixel.x] = sum / weightSum;
+}
+
+[numthreads(8, 8, 1)]
+void BlurVertical(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_Width || id.y >= (uint)_Height)
+        return;
+    int2 pixel = (int2)id.xy;
+    float4 sum = 0.0;
+    float weightSum = 0.0;
+    for (int offset = -_BlurRadius; offset <= _BlurRadius; offset++)
+    {
+        float weight = GaussianWeight(offset);
+        int sourceY = WrapIndex(pixel.y + offset, _Height);
+        sum += _DensityInput[sourceY * _Width + pixel.x] * weight;
+        weightSum += weight;
+    }
+    _DensityOutput[pixel.y * _Width + pixel.x] = sum / weightSum;
+}
+
+[numthreads(8, 8, 1)]
+void ToneMap(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= (uint)_Width || id.y >= (uint)_Height)
+        return;
+    int2 pixel = (int2)id.xy;
+    int index = pixel.y * _Width + pixel.x;
+    float3 signal = max(0.0, _DensityInput[index].rgb - _BlackPoint);
+    float3 value = 1.0 - exp(-signal * _Exposure);
+    value = pow(saturate(value), 1.0 / _Contrast);
+    value = saturate(value * max(0.0, _Tint.rgb));
+    float alpha = _AlphaFromIntensity != 0 ? max(value.r, max(value.g, value.b)) : 1.0;
+    _Output[pixel] = float4(value, alpha);
+}
