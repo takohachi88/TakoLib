@@ -482,7 +482,13 @@ namespace TakoLibEditor.Common
             Shader shader = ShaderUtil.CreateShaderAsset(_shaderCode);
 			Material material = new Material(shader);
 
-			RenderTexture rt = RenderTexture.GetTemporary(_size.x, _size.y, 0, RenderTextureFormat.ARGB32);
+			RenderTextureFormat renderTextureFormat = _format switch
+			{
+				TextureFormat.RGBAFloat => RenderTextureFormat.ARGBFloat,
+				TextureFormat.RGBAHalf => RenderTextureFormat.ARGBHalf,
+				_ => RenderTextureFormat.ARGB32,
+			};
+			RenderTexture rt = RenderTexture.GetTemporary(_size.x, _size.y, 0, renderTextureFormat);
 			rt.wrapMode = _wrapMode;
 			rt.filterMode = _filterMode;
 			rt.Create();
@@ -643,22 +649,40 @@ namespace TakoLibEditor.Common
 
 				using (new EditorGUI.DisabledScope(!_target.CanGenerateTexture()))
 				{
-					if (GUILayout.Button("Export as texture asset", GUILayout.Width(200), GUILayout.Height(20)))
-					{
-						string filePath = EditorUtility.SaveFilePanel("Export Procedual Texture", Application.dataPath, string.Empty, "png");
-						if (string.IsNullOrEmpty(filePath)) return;
-						Texture2D texture = AssetDatabase.LoadAssetAtPath<Texture2D>(_target.assetPath);
-						if (!texture)
-						{
-							Debug.LogError($"[{nameof(ProcedualTextureImporter)}] Failed to load texture.");
-							return;
-						}
-						File.WriteAllBytes(filePath, texture.EncodeToPNG());
-						AssetDatabase.Refresh();
-						Debug.Log($"[{nameof(ProcedualTextureImporter)}] Export completed. ({filePath})");
-					}
+					if (GUILayout.Button("Export as PNG", GUILayout.Width(200), GUILayout.Height(20)))
+						ExportTexture("png");
+
+					GUIContent exportExrContent = new(
+						"Export as EXR",
+						"Exports a ZIP-compressed 32-bit float EXR. Use RGBAHalf or RGBAFloat as the texture Format to retain HDR values above 1.");
+					if (GUILayout.Button(exportExrContent, GUILayout.Width(200), GUILayout.Height(20)))
+						ExportTexture("exr");
 				}
 
+			}
+
+			private void ExportTexture(string extension)
+			{
+				string filePath = EditorUtility.SaveFilePanel(
+					"Export Procedual Texture",
+					Application.dataPath,
+					string.Empty,
+					extension);
+				if (string.IsNullOrEmpty(filePath)) return;
+
+				Texture2D texture = _target.LoadGeneratedTexture();
+				if (!texture)
+				{
+					Debug.LogError($"[{nameof(ProcedualTextureImporter)}] Failed to load texture.");
+					return;
+				}
+
+				byte[] imageData = extension == "exr"
+					? texture.EncodeToEXR(Texture2D.EXRFlags.OutputAsFloat | Texture2D.EXRFlags.CompressZIP)
+					: texture.EncodeToPNG();
+				File.WriteAllBytes(filePath, imageData);
+				AssetDatabase.Refresh();
+				Debug.Log($"[{nameof(ProcedualTextureImporter)}] {extension.ToUpperInvariant()} export completed. ({filePath})");
 			}
 
 			private static void OpenSpriteEditor(string assetPath)
