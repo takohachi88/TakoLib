@@ -15,7 +15,7 @@ namespace TakoLibEditor.Common
         [SerializeField] private bool _horizontal = true, _vertical = true, _tilePreview;
         [SerializeField] private int _previewChannel;
         [SerializeField] private bool _blendSeams, _toneEnabled;
-        [SerializeField] private float _contrast = 1f;
+        [SerializeField] private float _contrastR = 1f, _contrastG = 1f, _contrastB = 1f, _contrastA = 1f;
         [SerializeField] private float _blendWidth = 0.15f, _blendHeight = 0.15f;
         [SerializeField] private float _solidWidth, _solidHeight;
         [SerializeField] private AnimationCurve _tone = AnimationCurve.Linear(0, 0, 1, 1);
@@ -209,7 +209,7 @@ namespace TakoLibEditor.Common
                     _settings.alpha = GeneratedChannel.One;
                     _settings.greenSeed = _settings.redSeed;
                     _toneEnabled = false;
-                    _contrast = 1f;
+                    _contrastR = _contrastG = _contrastB = _contrastA = 1f;
                     GUI.changed = true;
                 }
                 EditorGUILayout.HelpBox("CenterU/CenterVはセル全体を中心点の画像UVで塗ります。RGを画像サンプリングのUVに接続してください。Voronoiは生成点、Triangleは重心を使います。", MessageType.None);
@@ -223,10 +223,15 @@ namespace TakoLibEditor.Common
         {
             DrawHistogram();
             EditorGUI.BeginChangeCheck();
-            _contrast = EditorGUILayout.Slider(new GUIContent("コントラスト", "RGBを0.5中心に調整します。1=変更なし、0=均一なグレー。アルファは維持します。"), _contrast, 0f, 4f);
+            EditorGUILayout.LabelField("RGBA コントラスト", EditorStyles.boldLabel);
+            _contrastR = EditorGUILayout.Slider("R コントラスト", _contrastR, 0f, 4f);
+            _contrastG = EditorGUILayout.Slider("G コントラスト", _contrastG, 0f, 4f);
+            _contrastB = EditorGUILayout.Slider("B コントラスト", _contrastB, 0f, 4f);
+            _contrastA = EditorGUILayout.Slider("A コントラスト", _contrastA, 0f, 4f);
+            EditorGUILayout.LabelField("0.5を中心に調整：1=変更なし、0=均一な0.5", EditorStyles.miniLabel);
             if (GUILayout.Button("コントラストをリセット"))
             {
-                _contrast = 1f;
+                _contrastR = _contrastG = _contrastB = _contrastA = 1f;
                 GUI.changed = true;
             }
             EditorGUILayout.LabelField("コントラスト → トーンカーブの順に適用", EditorStyles.miniLabel);
@@ -311,13 +316,14 @@ namespace TakoLibEditor.Common
 
         private Color32[] AdjustTone(Color32[] pixels)
         {
-            if (!_toneEnabled && _contrast == 1f) return pixels;
+            if (!_toneEnabled && _contrastR == 1f && _contrastG == 1f && _contrastB == 1f && _contrastA == 1f) return pixels;
             for (int i = 0; i < pixels.Length; i++)
             {
                 Color p = pixels[i];
-                p.r = Mathf.Clamp01((p.r - 0.5f) * _contrast + 0.5f);
-                p.g = Mathf.Clamp01((p.g - 0.5f) * _contrast + 0.5f);
-                p.b = Mathf.Clamp01((p.b - 0.5f) * _contrast + 0.5f);
+                p.r = Mathf.Clamp01((p.r - 0.5f) * _contrastR + 0.5f);
+                p.g = Mathf.Clamp01((p.g - 0.5f) * _contrastG + 0.5f);
+                p.b = Mathf.Clamp01((p.b - 0.5f) * _contrastB + 0.5f);
+                p.a = Mathf.Clamp01((p.a - 0.5f) * _contrastA + 0.5f);
                 pixels[i] = _toneEnabled
                     ? new Color(EvaluateCurve(_toneR, EvaluateCurve(_tone, p.r)),
                         EvaluateCurve(_toneG, EvaluateCurve(_tone, p.g)),
@@ -353,7 +359,7 @@ namespace TakoLibEditor.Common
                         save ? 0 : 256, _solidWidth, _solidHeight);
                 if (save)
                 {
-                    if (_toneEnabled || _contrast != 1f)
+                    if (_toneEnabled || _contrastR != 1f || _contrastG != 1f || _contrastB != 1f || _contrastA != 1f)
                     {
                         generated.SetPixels32(AdjustTone(generated.GetPixels32()));
                         generated.Apply();
