@@ -70,6 +70,21 @@ namespace TakoLibEditor.Common
 
 		public override void OnGUI(Rect position, MaterialProperty prop, string label, MaterialEditor editor)
 		{
+			// Default GUI が Inspector 幅近くに広げるラベル幅を、この Drawer の欄幅に収める。
+			float originalLabelWidth = EditorGUIUtility.labelWidth;
+			EditorGUIUtility.labelWidth = Mathf.Min(originalLabelWidth, position.width * 0.45f);
+			try
+			{
+				DrawProperty(position, prop, label, editor);
+			}
+			finally
+			{
+				EditorGUIUtility.labelWidth = originalLabelWidth;
+			}
+		}
+
+		private static void DrawProperty(Rect position, MaterialProperty prop, string label, MaterialEditor editor)
+		{
 			if (prop.propertyType != ShaderPropertyType.Texture)
 			{
 				EditorGUI.LabelField(position, label, "[Gradient] は Texture プロパティ専用です。");
