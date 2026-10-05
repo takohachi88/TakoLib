@@ -51,7 +51,7 @@ namespace TakoLibEditor.Common
 		public override float GetPropertyHeight(MaterialProperty prop, string label, MaterialEditor editor)
 		{
 			int lineCount = 1;
-			if (prop.hasMixedValue || prop.textureValue == null) return GetHeight(lineCount);
+			if (prop.hasMixedValue || prop.propertyType != ShaderPropertyType.Texture) return GetHeight(lineCount);
 
 			if (TryGetGradientImporter(prop.textureValue, out _))
 			{
@@ -98,6 +98,14 @@ namespace TakoLibEditor.Common
 			bool hasMaterialGradient =
 				canEditMaterial &&
 				TryGetGradientData(material, prop.name, prop.textureValue, out data);
+			if (hasMaterialGradient &&
+			    (prop.textureValue == null ||
+			     (data.PropertyName != prop.name && !material.HasProperty(data.PropertyName))))
+			{
+				// リネームの対応が確定した場合は、同じ SubAsset を新しいプロパティへ引き継ぐ。
+				AssignMaterialGradient(material, prop.name, data);
+				prop.textureValue = data.Texture;
+			}
 			string actionLabel = hasMaterialGradient
 				? "Delete"
 				: !prop.hasMixedValue && prop.textureValue == null ? "Create" : null;
@@ -190,10 +198,28 @@ namespace TakoLibEditor.Common
 
 			if (editableMaterial != null)
 			{
+				MaterialGradientData[] reusableGradients = GetMaterialGradients(editableMaterial)
+					.Where(candidate => !IsTextureReferenced(editableMaterial, candidate.Texture)).ToArray();
 				menu.AddItem(
-					new GUIContent("Material Sub-Asset"),
+					new GUIContent(reusableGradients.Length == 0 ? "Material Sub-Asset" : "Material Sub-Asset/New"),
 					false,
 					() => CreateAndAssignMaterialGradient(editableMaterial, propertyName));
+
+				// 複数のプロパティが同時に変わった場合は、利用者が既存データとの対応を選ぶ。
+				for (int i = 0; i < reusableGradients.Length; i++)
+				{
+					MaterialGradientData reusableData = reusableGradients[i];
+					menu.AddItem(
+						new GUIContent($"Reuse Material Gradient/{reusableData.Texture.name} ({i + 1})"),
+						false,
+						() =>
+						{
+							AssignMaterialGradient(editableMaterial, propertyName, reusableData);
+							AssetDatabase.SaveAssetIfDirty(reusableData);
+							AssetDatabase.SaveAssetIfDirty(reusableData.Texture);
+							AssetDatabase.SaveAssetIfDirty(editableMaterial);
+						});
+				}
 			}
 			else
 			{
@@ -365,14 +391,71 @@ namespace TakoLibEditor.Common
 			out MaterialGradientData data)
 		{
 			data = null;
-			if (material == null || texture == null) return false;
+			if (material == null) return false;
 
-			string materialPath = AssetDatabase.GetAssetPath(material);
-			data = AssetDatabase.LoadAllAssetsAtPath(materialPath)
+			MaterialGradientData[] gradients = GetMaterialGradients(material);
+			if (texture != null)
+			{
+				// プロパティ名は変更されるため、設定データは Texture の参照で識別する。
+				data = gradients.FirstOrDefault(candidate => candidate.Texture == texture);
+				return data != null;
+			}
+
+			MaterialGradientData[] orphanedGradients = gradients.Where(candidate =>
+				!material.HasProperty(candidate.PropertyName) &&
+				!IsTextureReferenced(material, candidate.Texture)).ToArray();
+			if (orphanedGradients.Length != 1) return false;
+
+			// 新旧が一対一のときだけ復旧する。複数候補を順番で結び付けると色設定を取り違える。
+			Shader shader = material.shader;
+			string unassignedPropertyName = null;
+			for (int i = 0; i < shader.GetPropertyCount(); i++)
+			{
+				if (shader.GetPropertyType(i) != ShaderPropertyType.Texture ||
+				    !shader.GetPropertyAttributes(i).Contains("Gradient")) continue;
+				string name = shader.GetPropertyName(i);
+				if (material.GetTexture(name) != null ||
+				    gradients.Any(candidate => candidate.PropertyName == name)) continue;
+				if (unassignedPropertyName != null) return false;
+				unassignedPropertyName = name;
+			}
+			if (unassignedPropertyName != propertyName) return false;
+			data = orphanedGradients[0];
+			return true;
+		}
+
+		private static MaterialGradientData[] GetMaterialGradients(Material material)
+		{
+			return AssetDatabase.LoadAllAssetsAtPath(AssetDatabase.GetAssetPath(material))
 				.OfType<MaterialGradientData>()
-				.FirstOrDefault(candidate =>
-					candidate.PropertyName == propertyName && candidate.Texture == texture);
-			return data != null;
+				.Where(candidate => candidate.Texture != null)
+				.ToArray();
+		}
+
+		private static bool IsTextureReferenced(Material material, Texture texture)
+		{
+			Shader shader = material.shader;
+			for (int i = 0; i < shader.GetPropertyCount(); i++)
+			{
+				if (shader.GetPropertyType(i) == ShaderPropertyType.Texture &&
+				    material.GetTexture(shader.GetPropertyName(i)) == texture) return true;
+			}
+			return false;
+		}
+
+		private static void AssignMaterialGradient(Material material, string propertyName, MaterialGradientData data)
+		{
+			if (material == null || data == null || data.Texture == null || !material.HasProperty(propertyName)) return;
+			Undo.RecordObjects(new UnityEngine.Object[] { material, data, data.Texture }, "Assign Material Gradient");
+			material.SetTexture(propertyName, data.Texture);
+			SerializedObject dataObject = new(data);
+			dataObject.FindProperty(DataPropertyNamePropertyName).stringValue = propertyName;
+			dataObject.ApplyModifiedPropertiesWithoutUndo();
+			data.name = $"{propertyName}_GradientData";
+			data.Texture.name = $"{propertyName}_Gradient";
+			EditorUtility.SetDirty(data);
+			EditorUtility.SetDirty(data.Texture);
+			EditorUtility.SetDirty(material);
 		}
 
 		private static void DrawMaterialGradientProperties(
@@ -425,14 +508,14 @@ namespace TakoLibEditor.Common
 			if (string.IsNullOrEmpty(materialPath)) return;
 
 			// プロパティを一度空にしても既存のサブアセットがあれば再利用し、重複生成を避ける。
-			MaterialGradientData existingData = AssetDatabase.LoadAllAssetsAtPath(materialPath)
-				.OfType<MaterialGradientData>()
-				.FirstOrDefault(candidate => candidate.PropertyName == propertyName && candidate.Texture != null);
+			if (!TryGetGradientData(material, propertyName, material.GetTexture(propertyName), out MaterialGradientData existingData))
+			{
+				existingData = GetMaterialGradients(material)
+					.FirstOrDefault(candidate => candidate.PropertyName == propertyName);
+			}
 			if (existingData != null)
 			{
-				Undo.RecordObject(material, "Assign Material Gradient");
-				material.SetTexture(propertyName, existingData.Texture);
-				EditorUtility.SetDirty(material);
+				AssignMaterialGradient(material, propertyName, existingData);
 				AssetDatabase.SaveAssetIfDirty(material);
 				EditorGUIUtility.PingObject(material);
 				return;
