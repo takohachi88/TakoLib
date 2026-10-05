@@ -16,12 +16,14 @@ namespace TakoLibEditor.Common
 	{
 		private const string ColorSpecifyModePropertyName = "_colorSpecifyMode";
 		private const string ImporterGradientPropertyName = "_gradient";
+		private const string ImporterGradientsPropertyName = "_gradients";
 		private const string SizePropertyName = "_size";
 		private const string VerticalPropertyName = "_vertical";
 		private const string WrapModePropertyName = "_wrapMode";
 		private const string ImporterFilterModePropertyName = "_filterMode";
 		private const string SpritePropertyName = "_sprite";
 		private const string GradientModeName = "Gradient";
+		private const string MultipleGradientsModeName = "MultipleGradients";
 
 		private const string DataPropertyNamePropertyName = "_propertyName";
 		private const string DataGradientPropertyName = "_gradient";
@@ -53,10 +55,10 @@ namespace TakoLibEditor.Common
 			int lineCount = 1;
 			if (prop.hasMixedValue || prop.propertyType != ShaderPropertyType.Texture) return GetHeight(lineCount);
 
-			if (TryGetGradientImporter(prop.textureValue, out _))
+			if (TryGetGradientImporter(prop.textureValue, out ProcedualTextureImporter importer))
 			{
 				// Gradient、横幅、Filter Mode。
-				lineCount += 3;
+				lineCount += GetImporterPropertyLineCount(importer);
 			}
 			else if (TryGetEditableMaterial(editor, out Material material) &&
 			         TryGetGradientData(material, prop.name, prop.textureValue, out _))
@@ -242,7 +244,23 @@ namespace TakoLibEditor.Common
 
 			SerializedObject importerObject = new(importer);
 			SerializedProperty modeProperty = importerObject.FindProperty(ColorSpecifyModePropertyName);
-			return modeProperty != null && GetSelectedEnumName(modeProperty) == GradientModeName;
+			if (modeProperty == null) return false;
+			string modeName = GetSelectedEnumName(modeProperty);
+			return modeName == GradientModeName || modeName == MultipleGradientsModeName;
+		}
+
+		private static bool IsMultipleGradients(SerializedObject importerObject)
+		{
+			SerializedProperty modeProperty = importerObject.FindProperty(ColorSpecifyModePropertyName);
+			return modeProperty != null && GetSelectedEnumName(modeProperty) == MultipleGradientsModeName;
+		}
+
+		private static int GetImporterPropertyLineCount(ProcedualTextureImporter importer)
+		{
+			SerializedObject importerObject = new(importer);
+			if (!IsMultipleGradients(importerObject)) return 3;
+			// Count、各 Gradient、Width、行ごとの高さ、Filter Mode の実際の行数を確保する。
+			return importerObject.FindProperty(ImporterGradientsPropertyName).arraySize + 4;
 		}
 
 		private static string GetSelectedEnumName(SerializedProperty enumProperty)
@@ -263,20 +281,39 @@ namespace TakoLibEditor.Common
 			SerializedProperty sizeProperty = importerObject.FindProperty(SizePropertyName);
 			SerializedProperty filterModeProperty = importerObject.FindProperty(ImporterFilterModePropertyName);
 			if (gradientProperty == null || sizeProperty == null || filterModeProperty == null) return;
+			bool isMultiple = IsMultipleGradients(importerObject);
+			SerializedProperty gradientsProperty = importerObject.FindProperty(ImporterGradientsPropertyName);
+			int originalCount = isMultiple ? gradientsProperty.arraySize : 0;
+			int newCount = originalCount;
 
 			EditorGUI.BeginChangeCheck();
 			EditorGUI.indentLevel++;
 			try
 			{
-				Rect gradientRect = GetLineRect(ref position);
-				DrawGradientProperty(
-					gradientRect,
-					gradientProperty,
-					gradient => ApplyImporterGradient(importer, gradient));
+				if (isMultiple)
+				{
+					newCount = Mathf.Max(1, EditorGUI.IntField(GetLineRect(ref position), "Count", originalCount));
+					for (int i = 0; i < originalCount; i++)
+					{
+						SerializedProperty element = gradientsProperty.GetArrayElementAtIndex(i);
+						// メニューが開いている間に配列が変わっても、貼り付け先の行を取り違えない。
+						string propertyPath = element.propertyPath;
+						DrawGradientProperty(GetLineRect(ref position), element,
+							gradient => ApplyImporterGradient(importer, gradient, propertyPath), $"Gradient {i + 1}");
+					}
+				}
+				else
+				{
+					DrawGradientProperty(GetLineRect(ref position), gradientProperty,
+						gradient => ApplyImporterGradient(importer, gradient));
+				}
 
 				Vector2Int size = sizeProperty.vector2IntValue;
 				size.x = Mathf.Max(MinWidth, EditorGUI.IntField(GetLineRect(ref position), "Width", size.x));
-				size.y = 1;
+				// MultipleGradients は一つの Gradient に複数行を割り当てられるため、高さを保持する。
+				size.y = isMultiple
+					? Mathf.Max(1, EditorGUI.IntField(GetLineRect(ref position), "Height Per Gradient", size.y))
+					: 1;
 				sizeProperty.vector2IntValue = size;
 
 				EditorGUI.PropertyField(GetLineRect(ref position), filterModeProperty, new GUIContent("Filter Mode"));
@@ -286,11 +323,21 @@ namespace TakoLibEditor.Common
 				EditorGUI.indentLevel--;
 			}
 
-			if (!EditorGUI.EndChangeCheck()) return;
+			bool changed = EditorGUI.EndChangeCheck();
+			bool resized = isMultiple && newCount != originalCount;
+			if (!changed && !resized) return;
+			if (resized)
+			{
+				// 描画中は元の行数を使い、次の Layout から新しい行数へ切り替える。
+				gradientsProperty.arraySize = newCount;
+				for (int i = originalCount; i < newCount; i++)
+					gradientsProperty.GetArrayElementAtIndex(i).gradientValue = CreateDefaultGradient();
+			}
 
 			// Importerの設定を保存して再生成し、参照中のTexture2Dを即座に更新する。
 			importerObject.ApplyModifiedProperties();
 			importer.SaveAndReimport();
+			if (resized) GUIUtility.ExitGUI();
 		}
 
 		private static void CreateAndAssignStandaloneGradient(string propertyName, Material[] materials)
@@ -568,10 +615,11 @@ namespace TakoLibEditor.Common
 		private static void DrawGradientProperty(
 			Rect position,
 			SerializedProperty gradientProperty,
-			Action<Gradient> pasteAction)
+			Action<Gradient> pasteAction,
+			string label = "Gradient")
 		{
 			HandleGradientContextMenu(position, gradientProperty.gradientValue, pasteAction);
-			EditorGUI.PropertyField(position, gradientProperty, new GUIContent("Gradient"));
+			EditorGUI.PropertyField(position, gradientProperty, new GUIContent(label));
 		}
 
 		private static void HandleGradientContextMenu(
@@ -669,14 +717,19 @@ namespace TakoLibEditor.Common
 			return true;
 		}
 
-		private static void ApplyImporterGradient(ProcedualTextureImporter importer, Gradient gradient)
+		private static void ApplyImporterGradient(
+			ProcedualTextureImporter importer,
+			Gradient gradient,
+			string propertyPath = ImporterGradientPropertyName)
 		{
 			if (importer == null || gradient == null) return;
 
-			Undo.RecordObject(importer, "Paste Gradient");
 			SerializedObject importerObject = new(importer);
 			importerObject.Update();
-			importerObject.FindProperty(ImporterGradientPropertyName).gradientValue = gradient;
+			SerializedProperty gradientProperty = importerObject.FindProperty(propertyPath);
+			if (gradientProperty == null || gradientProperty.propertyType != SerializedPropertyType.Gradient) return;
+			Undo.RecordObject(importer, "Paste Gradient");
+			gradientProperty.gradientValue = gradient;
 			importerObject.ApplyModifiedProperties();
 			importer.SaveAndReimport();
 		}
