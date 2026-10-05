@@ -1,0 +1,16 @@
+{
+    "name": "TakoLib.Common.Timeline.Editor",
+    "rootNamespace": "TakoLib.Common.Timeline.Editor",
+    "references": [
+        "TakoLib.Common.Timeline",
+        "Unity.Timeline",
+        "Unity.Timeline.Editor",
+        "Unity.Splines",
+        "Unity.Mathematics",
+        "Unity.RenderPipelines.Core.Runtime",
+        "takolib.common"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ]
+}

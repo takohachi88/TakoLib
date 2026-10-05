@@ -1,0 +1,7 @@
+.camera-key-toolbar { flex-direction: row; align-items: center; }
+.camera-key-spacer { flex-grow: 1; }
+.camera-key-action { min-width: 28px; }
+.camera-key-hint { white-space: normal; }
+.camera-key-heading { -unity-font-style: bold; margin-top: 8px; margin-bottom: 6px; white-space: normal; }
+.camera-key-marker { color: rgb(102, 230, 255); -unity-text-align: middle-center; }
+.camera-key-marker--selected { color: rgb(20, 20, 20); background-color: rgb(255, 207, 90); -unity-font-style: bold; }

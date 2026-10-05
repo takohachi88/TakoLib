@@ -1,0 +1,12 @@
+{
+    "name": "TakoLib.Common.Timeline",
+    "rootNamespace": "TakoLib.Common.Timeline",
+    "references": [
+        "Unity.Timeline",
+        "Unity.Splines",
+        "Unity.Mathematics",
+        "Unity.Collections",
+        "Unity.RenderPipelines.Core.Runtime",
+        "takolib.common"
+    ]
+}

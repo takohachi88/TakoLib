@@ -17,6 +17,7 @@
   <Project Path="Unity.VisualScripting.Core.Editor.csproj" />
   <Project Path="Unity.RenderPipelines.Universal.Editor.csproj" />
   <Project Path="Unity.PerformanceTesting.Editor.csproj" />
+  <Project Path="Unity.Splines.csproj" />
   <Project Path="UnityEngine.TestRunner.csproj" />
   <Project Path="Unity.RenderPipelines.HighDefinition.Editor.csproj" />
   <Project Path="takolib.common.csproj" />
@@ -35,10 +36,12 @@
   <Project Path="Unity.VisualScripting.State.Editor.csproj" />
   <Project Path="Unity.VisualEffectGraph.Runtime.csproj" />
   <Project Path="Unity.VisualScripting.Flow.csproj" />
+  <Project Path="Unity.Splines.Editor.csproj" />
   <Project Path="Unity.PerformanceTesting.csproj" />
   <Project Path="Unity.TextMeshPro.csproj" />
   <Project Path="UniTask.Linq.csproj" />
   <Project Path="Unity.TextMeshPro.Editor.csproj" />
+  <Project Path="TakoLib.Common.Timeline.csproj" />
   <Project Path="Unity.Rider.Editor.csproj" />
   <Project Path="Unity.VisualScripting.State.csproj" />
   <Project Path="UnityEditor.UI.csproj" />
@@ -56,10 +59,13 @@
   <Project Path="Unity.PathTracing.Runtime.csproj" />
   <Project Path="UniTask.TextMeshPro.csproj" />
   <Project Path="Unity.PathTracing.Editor.csproj" />
+  <Project Path="Unity.Settings.Editor.csproj" />
+  <Project Path="TakoLib.Common.Timeline.Tests.csproj" />
   <Project Path="Unity.ShaderGraph.Utilities.csproj" />
   <Project Path="Unity.VisualScripting.Shared.Editor.csproj" />
   <Project Path="Unity.Recorder.Base.csproj" />
   <Project Path="Unity.Profiling.Core.csproj" />
+  <Project Path="TakoLib.Common.Timeline.Editor.csproj" />
   <Project Path="Unity.EditorCoroutines.Editor.csproj" />
   <Project Path="Unity.SurfaceCache.Runtime.csproj" />
   <Project Path="Unity.InternalAPIEngineBridge.RenderPipelines.Core.Runtime.Shared.csproj" />
