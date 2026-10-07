@@ -24,8 +24,8 @@ namespace TakoLibEditor.Common
         [SerializeField] private FilterMode _filterMode = FilterMode.Bilinear;
         [SerializeField] private TextureImporterFormat _format = TextureImporterFormat.RGB24;
         [SerializeField] private bool _sprite;
-        [SerializeField] private string _baseFileName = "Caustics";
-        [SerializeField, Tooltip("Assetsフォルダからの相対パスです。空欄の場合は出力時にフォルダを選択します。")] private string _directory = string.Empty;
+        [SerializeField, Tooltip("保存ダイアログで指定した前回のファイル名です。ダイアログの初期ファイル名にはScriptableObject名を使用します。")] private string _baseFileName = string.Empty;
+        [SerializeField, Tooltip("Assetsフォルダからの相対パスです。名前を付けて保存する際の初期フォルダとして使用します。")] private string _directory = string.Empty;
         public CausticsTextureSettings Settings => _settings;
         public int AtlasColumns => Mathf.Max(1, _atlasColumns);
         public bool AtlasOnly => _atlasOnly;
@@ -142,35 +142,40 @@ namespace TakoLibEditor.Common
         {
             CausticsTextureSettings settings = CreateNormalizedSettings();
             int columns = Mathf.Clamp(_atlasColumns, 1, settings.FrameCount);
-            string error = ValidateOutput(_baseFileName, _directory) ?? ValidateSettings(settings, columns);
+            string error = ValidateOutput(name, _directory) ?? ValidateSettings(settings, columns);
             if (error != null) throw new InvalidOperationException(error);
             if (!Enum.IsDefined(typeof(TextureImporterFormat), _format))
                 throw new InvalidOperationException("Choose a supported texture import format.");
 
-            string outputDirectory = string.IsNullOrWhiteSpace(_directory)
-                ? EditorUtility.OpenFolderPanel("Export Caustics PNG", Application.dataPath, string.Empty)
-                : Path.GetFullPath(Path.Combine(Application.dataPath, _directory));
-            if (string.IsNullOrEmpty(outputDirectory)) return;
+            string initialDirectory = string.IsNullOrWhiteSpace(_directory) ? Application.dataPath : Path.GetFullPath(Path.Combine(Application.dataPath, _directory));
+            if (!Directory.Exists(initialDirectory)) initialDirectory = Application.dataPath;
+            string atlasPath = EditorUtility.SaveFilePanel("Export Caustics PNG", initialDirectory, name, "png");
+            if (string.IsNullOrEmpty(atlasPath)) return;
+            atlasPath = Path.GetFullPath(atlasPath);
+            string outputDirectory = Path.GetDirectoryName(atlasPath);
+            string baseName = Path.GetFileNameWithoutExtension(atlasPath);
+            error = ValidateOutput(baseName, string.Empty);
+            if (error != null) throw new InvalidOperationException(error);
             string assetsRoot = Path.GetFullPath(Application.dataPath) + Path.DirectorySeparatorChar;
             outputDirectory = Path.GetFullPath(outputDirectory);
             if (!(outputDirectory + Path.DirectorySeparatorChar).StartsWith(assetsRoot, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Select a directory inside Assets so texture import settings can be applied.");
 
             string relativeDirectory = outputDirectory.Length == assetsRoot.Length - 1 ? string.Empty : outputDirectory.Substring(assetsRoot.Length).Replace('\\', '/');
-            if (_directory != relativeDirectory)
+            if (_directory != relativeDirectory || _baseFileName != baseName)
             {
-                Undo.RecordObject(this, "Set Caustics Output Directory");
+                Undo.RecordObject(this, "Set Caustics Output Path");
                 _directory = relativeDirectory;
+                _baseFileName = baseName;
                 EditorUtility.SetDirty(this);
             }
             int rows = Mathf.CeilToInt((float)settings.FrameCount / columns);
             int atlasWidth = settings.Width * columns;
             int atlasHeight = settings.Height * rows;
-            string atlasPath = Path.Combine(outputDirectory, $"{_baseFileName}_Atlas.png");
             List<string> paths = new() { atlasPath };
             bool exportFrames = !_atlasOnly && !_sprite;
             if (exportFrames)
-                for (int i = 0; i < settings.FrameCount; i++) paths.Add(Path.Combine(outputDirectory, $"{_baseFileName}_{i:D3}.png"));
+                for (int i = 0; i < settings.FrameCount; i++) paths.Add(Path.Combine(outputDirectory, $"{baseName}_{i:D3}.png"));
             if (paths.Any(File.Exists) && !EditorUtility.DisplayDialog("Overwrite Existing Files?", "One or more PNG files already exist and will be overwritten.", "Overwrite", "Cancel")) return;
 
             // キャンセル時に既存画像を変更しないよう、全フレームの生成後に書き出す。
@@ -299,16 +304,40 @@ namespace TakoLibEditor.Common
             private Texture2D _previewTexture;
             private Color32[][] _previewFrames;
             private int _displayedPreviewFrame = -1;
+            private bool _previewEnabled;
+            private string _previewSettingsJson;
+            private double _previewUpdateTime = -1d;
             private SerializedProperty _baseFileNameProperty;
             private SerializedProperty _directoryProperty;
             private CausticsTexturePreset Preset => (CausticsTexturePreset)target;
-            private void OnEnable() => Undo.undoRedoPerformed += OnUndoRedo;
+            private void OnEnable()
+            {
+                Undo.undoRedoPerformed += OnUndoRedo;
+                EditorApplication.update += UpdatePreview;
+            }
             private void OnDisable()
             {
                 Undo.undoRedoPerformed -= OnUndoRedo;
+                EditorApplication.update -= UpdatePreview;
                 ClearPreview();
             }
-            private void OnUndoRedo() { ClearPreview(); Repaint(); }
+            private void OnUndoRedo() { RequestPreviewUpdate(); Repaint(); }
+            private void RequestPreviewUpdate()
+            {
+                if (!_previewEnabled || target == null) return;
+                string settingsJson = JsonUtility.ToJson(Preset.CreateNormalizedSettings());
+                if (_previewSettingsJson == settingsJson) return;
+                _previewSettingsJson = settingsJson;
+                ClearPreview();
+                // 連続したスライダー操作では最後の変更から少し待ち、不要な再生成をまとめる。
+                _previewUpdateTime = Preset.Settings.FrameCount > 1 ? EditorApplication.timeSinceStartup + 0.3d : -1d;
+            }
+            private void UpdatePreview()
+            {
+                if (target == null || _previewUpdateTime < 0d || EditorApplication.timeSinceStartup < _previewUpdateTime) return;
+                GeneratePreview();
+                Repaint();
+            }
             private void ClearPreview()
             {
                 if (_previewTexture != null) DestroyImmediate(_previewTexture);
@@ -337,7 +366,8 @@ namespace TakoLibEditor.Common
                 EnsureProperties();
                 serializedObject.Update();
 
-                EditorGUILayout.PropertyField(_baseFileNameProperty, new GUIContent("Base File Name"));
+                using (new EditorGUI.DisabledScope(true))
+                    EditorGUILayout.PropertyField(_baseFileNameProperty, new GUIContent("Last Export File Name", _baseFileNameProperty.tooltip));
                 EditorGUILayout.PropertyField(_directoryProperty, new GUIContent("Directory", _directoryProperty.tooltip));
                 DrawSequenceSettings();
                 EditorGUILayout.Space(8f);
@@ -346,7 +376,7 @@ namespace TakoLibEditor.Common
                 DrawAppearanceSettings();
                 EditorGUILayout.Space(8f);
                 DrawTextureSettings();
-                if (serializedObject.ApplyModifiedProperties()) ClearPreview();
+                if (serializedObject.ApplyModifiedProperties()) RequestPreviewUpdate();
 
                 if (FindSetting(nameof(CausticsTextureSettings.FrameCount)).intValue > 1)
                 {
@@ -375,31 +405,8 @@ namespace TakoLibEditor.Common
                 EditorGUILayout.LabelField("Preview", EditorStyles.boldLabel);
                 int frameCount = Mathf.Max(1, FindSetting(nameof(CausticsTextureSettings.FrameCount)).intValue);
                 _previewFrame = EditorGUILayout.IntSlider("Frame", Mathf.Clamp(_previewFrame, 0, frameCount - 1), 0, frameCount - 1);
-                if (GUILayout.Button("Generate Preview"))
-                {
-                    serializedObject.ApplyModifiedProperties();
-                    ClearPreview();
-                    try
-                    {
-                        CausticsTextureSettings settings = Preset.CreateNormalizedSettings();
-                        if ((long)settings.Width * settings.Height * settings.FrameCount > MaximumFramePixels)
-                            throw new InvalidOperationException($"Preview exceeds the {MaximumFramePixels:N0}-pixel safety limit. Reduce resolution or frame count.");
-                        Color32[][] frames = new Color32[settings.FrameCount][];
-                        using CausticsFrameGenerator generator = new(settings);
-                        for (int i = 0; i < frames.Length; i++)
-                        {
-                            if (EditorUtility.DisplayCancelableProgressBar("Generate Caustics Preview", $"Frame {i + 1} / {frames.Length}", (float)i / frames.Length)) return;
-                            frames[i] = generator.GenerateFrame(i);
-                        }
-                        // 生成済み画素を保持し、フレーム切り替えでは再計算せず表示用Textureだけを更新する。
-                        _previewFrames = frames;
-                        _previewTexture = CreatePngTexture(settings.Width, settings.Height, frames[_previewFrame], settings.Linear);
-                        _previewTexture.hideFlags = HideFlags.HideAndDontSave;
-                        _displayedPreviewFrame = _previewFrame;
-                    }
-                    catch (Exception exception) { ClearPreview(); Debug.LogException(exception, Preset); }
-                    finally { EditorUtility.ClearProgressBar(); }
-                }
+                if (GUILayout.Button("Generate Preview")) GeneratePreview();
+                if (_previewUpdateTime >= 0d) EditorGUILayout.LabelField("Updating preview...", EditorStyles.centeredGreyMiniLabel);
                 if (_previewTexture == null) return;
                 float width = Mathf.Max(64f, EditorGUIUtility.currentViewWidth - 42f);
                 float height = Mathf.Min(320f, width * _previewTexture.height / _previewTexture.width);
@@ -418,6 +425,39 @@ namespace TakoLibEditor.Common
                     _displayedPreviewFrame = _previewFrame;
                 }
                 GUI.DrawTexture(rect, _previewTexture, ScaleMode.ScaleToFit, true);
+            }
+
+            private void GeneratePreview()
+            {
+                _previewEnabled = true;
+                _previewUpdateTime = -1d;
+                ClearPreview();
+                try
+                {
+                    CausticsTextureSettings settings = Preset.CreateNormalizedSettings();
+                    _previewSettingsJson = JsonUtility.ToJson(settings);
+                    _previewFrame = Mathf.Clamp(_previewFrame, 0, settings.FrameCount - 1);
+                    if ((long)settings.Width * settings.Height * settings.FrameCount > MaximumFramePixels)
+                        throw new InvalidOperationException($"Preview exceeds the {MaximumFramePixels:N0}-pixel safety limit. Reduce resolution or frame count.");
+                    Color32[][] frames = new Color32[settings.FrameCount][];
+                    using CausticsFrameGenerator generator = new(settings);
+                    for (int i = 0; i < frames.Length; i++)
+                    {
+                        if (EditorUtility.DisplayCancelableProgressBar("Generate Caustics Preview", $"Frame {i + 1} / {frames.Length}", (float)i / frames.Length))
+                        {
+                            _previewEnabled = false;
+                            return;
+                        }
+                        frames[i] = generator.GenerateFrame(i);
+                    }
+                    // 生成済み画素を保持し、フレーム切り替えでは再計算せず表示用Textureだけを更新する。
+                    _previewFrames = frames;
+                    _previewTexture = CreatePngTexture(settings.Width, settings.Height, frames[_previewFrame], settings.Linear);
+                    _previewTexture.hideFlags = HideFlags.HideAndDontSave;
+                    _displayedPreviewFrame = _previewFrame;
+                }
+                catch (Exception exception) { ClearPreview(); Debug.LogException(exception, Preset); }
+                finally { EditorUtility.ClearProgressBar(); }
             }
 
             private static Rect FitAspectRect(Rect rect, float aspect)
@@ -538,7 +578,7 @@ namespace TakoLibEditor.Common
                 };
                 if (!Enum.IsDefined(typeof(TextureImporterFormat), (TextureImporterFormat)_formatProperty.intValue))
                     return "The selected format is not supported by the PNG importer.";
-                return ValidateOutput(_baseFileNameProperty.stringValue, _directoryProperty.stringValue) ?? ValidateSettings(settings, _atlasColumnsProperty.intValue);
+                return ValidateOutput(Preset.name, _directoryProperty.stringValue) ?? ValidateSettings(settings, _atlasColumnsProperty.intValue);
             }
 
         }
