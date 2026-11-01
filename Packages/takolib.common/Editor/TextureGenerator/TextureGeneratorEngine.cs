@@ -4,15 +4,19 @@ using UnityEngine;
 
 namespace TakoLibEditor.Common
 {
-    public enum GeneratedPattern { Perlin, Value, Fractal, Billow, Ridged, White, Voronoi, Hexagon, Triangle }
-    public enum GeneratedChannel { Value, U, V, CellId, Zero, One, CenterU, CenterV }
+    public enum GeneratedPattern { Perlin, Value, Fractal, Billow, Ridged, White, Voronoi, Hexagon, Triangle, Block, RectangleLayers }
+    public enum GeneratedChannel { Value, U, V, CellId, Zero, One, CenterU, CenterV, W, CenterW }
 
     [Serializable]
     public sealed class TextureGenerationSettings
     {
         public GeneratedPattern pattern = GeneratedPattern.Fractal;
-        public int columns = 8, rows = 8, seed = 1, octaves = 4;
+        public int columns = 8, rows = 8, layers = 8, seed = 1, octaves = 4;
         public float persistence = 0.5f;
+        public int rectangleCount = 256;
+        public Vector2 rectangleSize = new Vector2(0.03f, 0.25f);
+        public bool rectangleEqualize = true;
+        public float rectangleStrength = 0.5f, rectangleBackground = 0.5f;
         public bool seamless = true;
         public bool separateSeeds;
         public int redSeed = 1, greenSeed = 1, blueSeed = 1, alphaSeed = 1;
@@ -26,7 +30,7 @@ namespace TakoLibEditor.Common
             blue = GeneratedChannel.Value, alpha = GeneratedChannel.One;
     }
 
-    public static class TextureGeneratorEngine
+    public static partial class TextureGeneratorEngine
     {
         private static int Wrap(int n, int period) => (n % period + period) % period;
         private static float Hash(int x, int y, int seed)
@@ -66,6 +70,12 @@ namespace TakoLibEditor.Common
 
         private static Vector4 Sample(float u, float v, TextureGenerationSettings s, out Vector2 center)
         {
+            if (s.pattern == GeneratedPattern.RectangleLayers)
+            {
+                VolumeSample rectangles = new RectangleLayerSampler(s, false).Sample(u, v, 0);
+                center = new Vector2(rectangles.center.x, rectangles.center.y);
+                return new Vector4(rectangles.value, rectangles.uv.x, rectangles.uv.y, rectangles.id);
+            }
             int w = Mathf.Clamp(s.columns, 1, 128), h = Mathf.Clamp(s.rows, 2, 128);
             bool staggered = s.pattern == GeneratedPattern.Hexagon || s.pattern == GeneratedPattern.Triangle;
             if (staggered && s.seamless && (h & 1) != 0) h++;
@@ -113,6 +123,18 @@ namespace TakoLibEditor.Common
             float n;
             if (s.pattern == GeneratedPattern.White)
                 n = Lattice(Mathf.FloorToInt(x), Mathf.FloorToInt(y), w, h, s);
+            else if (s.pattern == GeneratedPattern.Block)
+            {
+                float total = 0, weight = 1, weights = 0;
+                for (int octave = 0; octave < Mathf.Clamp(s.octaves, 1, 8); octave++)
+                {
+                    int frequency = 1 << octave;
+                    total += Lattice(Mathf.FloorToInt(x * frequency), Mathf.FloorToInt(y * frequency),
+                        w * frequency, h * frequency, s) * weight;
+                    weights += weight; weight *= Mathf.Clamp01(s.persistence);
+                }
+                n = total / weights;
+            }
             else if (s.pattern == GeneratedPattern.Perlin || s.pattern == GeneratedPattern.Value)
                 n = Noise(x, y, w, h, s, s.pattern == GeneratedPattern.Value);
             else
@@ -140,6 +162,8 @@ namespace TakoLibEditor.Common
                 case GeneratedChannel.U: return sample.y;
                 case GeneratedChannel.V: return sample.z;
                 case GeneratedChannel.CellId: return sample.w;
+                case GeneratedChannel.W:
+                case GeneratedChannel.CenterW:
                 case GeneratedChannel.Zero: return 0;
                 case GeneratedChannel.One: return 1;
                 default: return sample.x;
@@ -159,6 +183,8 @@ namespace TakoLibEditor.Common
             if (settings == null) throw new ArgumentNullException(nameof(settings));
             if (width < 1 || height < 1 || width > 4096 || height > 4096)
                 throw new ArgumentOutOfRangeException(nameof(width));
+            if (settings.pattern == GeneratedPattern.RectangleLayers)
+                return Create(width, height, GenerateRectanglePixels(width, height, 1, settings, false, cancel), true, settings.seamless);
             var pixels = new Color32[width * height];
             var channels = new[] { settings.red, settings.green, settings.blue, settings.alpha };
             var seeds = new[] { settings.redSeed, settings.greenSeed, settings.blueSeed, settings.alphaSeed };
