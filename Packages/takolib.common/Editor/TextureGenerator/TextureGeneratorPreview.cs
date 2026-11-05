@@ -79,11 +79,12 @@ namespace TakoLibEditor.Common
         }
         private static int[,] Histogram(Color32[] values)
         {
-            var bins = new int[5, 256];
+            var bins = new int[6, 256];
             foreach (Color32 p in values)
             {
                 bins[0, p.r]++; bins[0, p.g]++; bins[0, p.b]++;
                 bins[1, p.r]++; bins[2, p.g]++; bins[3, p.b]++; bins[4, p.a]++;
+                bins[5, p.r]++; bins[5, p.g]++; bins[5, p.b]++; bins[5, p.a]++;
             }
             return bins;
         }
@@ -113,7 +114,7 @@ namespace TakoLibEditor.Common
             if (before == null || after == null) return;
             int maximum = 1;
             for (int i = 0; i < 256; i++) maximum = Mathf.Max(maximum, Mathf.Max(before[channel, i], after[channel, i]));
-            Color color = channel == 1 ? Color.red : channel == 2 ? Color.green : channel == 3 ? Color.cyan : Color.yellow;
+            Color color = channel == 1 ? Color.red : channel == 2 ? Color.green : channel == 3 ? Color.cyan : channel == 5 ? Color.white : Color.yellow;
             color.a = 0.65f;
             for (int i = 0; i < 256; i++)
             {
@@ -139,7 +140,7 @@ namespace TakoLibEditor.Common
                 }
                 if (!expanded) return;
                 EditorGUI.BeginChangeCheck();
-                channel = GUILayout.Toolbar(channel, new[] { "RGB", "R", "G", "B", "A" });
+                channel = GUILayout.Toolbar(channel, new[] { "RGB", "R", "G", "B", "A", "RGBA" });
                 if (EditorGUI.EndChangeCheck()) BuildDisplay();
                 tiles = EditorGUILayout.Toggle("3 × 3 タイル", tiles);
                 if (isVolume && recipe != null)
@@ -160,6 +161,7 @@ namespace TakoLibEditor.Common
                 {
                     Rect tile = new Rect(area.x + x * w / count, area.y + y * h / count, w / count, h / count);
                     if (channel == 4) EditorGUI.DrawTextureAlpha(tile, display, ScaleMode.StretchToFill);
+                    else if (channel == 5) EditorGUI.DrawTextureTransparent(tile, display, ScaleMode.StretchToFill);
                     else GUI.DrawTexture(tile, display, ScaleMode.StretchToFill, false);
                 }
             }

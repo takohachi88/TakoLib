@@ -24,7 +24,7 @@ namespace TakoLibEditor.Common
             catch (ExitGUIException) { throw; }
             catch (Exception e) { Debug.LogException(e); EditorUtility.DisplayDialog("Texture Generator", e.Message, "OK"); }
         }
-        public void Draw()
+        public void Draw(bool allowSavePreset = false)
         {
             if (data == null) return;
             properties.Update();
@@ -35,6 +35,8 @@ namespace TakoLibEditor.Common
 
             preview.Draw(data.recipe.generate3D, preview.Request, preview.HasStarted ? "プレビューを再生成" : "プレビューを生成");
             EditorGUILayout.Space();
+            if (allowSavePreset && GUILayout.Button("Presetとして保存…"))
+                Run(() => TextureGeneratorAssetUtility.SavePreset(data.recipe));
             if (data.recipe.generate3D)
                 EditorGUILayout.LabelField("Zスライスを並べたPNGを、標準Importerの3D形状で取り込みます。", EditorStyles.miniLabel);
             if (GUILayout.Button(data.recipe.generate3D ? "3D PNGを出力…" : "PNGを出力…"))
