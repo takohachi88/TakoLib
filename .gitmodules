@@ -1,0 +1,4 @@
+[submodule "Packages/com.texturetools.generator"]
+	path = Packages/com.texturetools.generator
+	url = https://github.com/takohachi88/TextureTools.git
+	branch = main
